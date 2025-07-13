@@ -82,10 +82,13 @@ class VideoAnalyzer:
         avg_confidence = np.mean([np.mean([lm['visibility'] for lm in frame]) for frame in landmarks_list])
         
         # Analyze specific exercises
-        if exercise_type.lower() in ['pushup', 'push-up', 'push ups']:
+        exercise_lower = exercise_type.lower()
+        if exercise_lower in ['pushup', 'push-up', 'push ups']:
             analysis = self._analyze_pushup(landmarks_list)
-        elif exercise_type.lower() in ['squat', 'squats']:
+        elif exercise_lower in ['squat', 'squats']:
             analysis = self._analyze_squat(landmarks_list)
+        elif exercise_lower in ['bench press', 'bench', 'benchpress']:
+            analysis = self._analyze_bench_press(landmarks_list)
         else:
             analysis = self._analyze_general_exercise(landmarks_list)
         
@@ -170,6 +173,57 @@ class VideoAnalyzer:
         
         return {
             "exercise_type": "squat",
+            "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
+            "issues_detected": list(set(issues)),
+            "recommendations": recommendations,
+            "confidence_score": 0.85
+        }
+    
+    def _analyze_bench_press(self, landmarks_list: List) -> Dict:
+        """Analyze bench press form"""
+        issues = []
+        recommendations = []
+        
+        for frame_landmarks in landmarks_list:
+            if len(frame_landmarks) >= 23:
+                # Check shoulder position (should be retracted)
+                left_shoulder = frame_landmarks[11]
+                right_shoulder = frame_landmarks[12]
+                
+                # Check if shoulders are back (simplified)
+                shoulder_y_avg = (left_shoulder['y'] + right_shoulder['y']) / 2
+                if shoulder_y_avg > 0.6:  # Shoulders too high
+                    issues.append("Shoulders not properly retracted")
+                
+                # Check elbow position
+                left_elbow = frame_landmarks[13]
+                right_elbow = frame_landmarks[14]
+                
+                # Check if elbows are at proper angle (simplified)
+                elbow_y_avg = (left_elbow['y'] + right_elbow['y']) / 2
+                if elbow_y_avg < 0.3:  # Elbows too high
+                    issues.append("Elbows too high - lower the bar more")
+                
+                # Check for arch in back
+                spine_landmarks = [frame_landmarks[11], frame_landmarks[12], 
+                                 frame_landmarks[23], frame_landmarks[24]]
+                spine_y_avg = np.mean([lm['y'] for lm in spine_landmarks])
+                if spine_y_avg < 0.4:  # Too much arch
+                    issues.append("Excessive back arch")
+        
+        if not issues:
+            recommendations.append("Excellent bench press form!")
+        else:
+            recommendations.extend([
+                "Retract your shoulder blades",
+                "Keep your feet flat on the ground",
+                "Control the bar descent",
+                "Maintain natural back arch",
+                "Keep your core tight"
+            ])
+        
+        return {
+            "exercise_type": "bench_press",
             "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
             "issues_detected": list(set(issues)),
             "recommendations": recommendations,
