@@ -7,8 +7,8 @@ DATABASE_URL = "sqlite:///./coachvision.db"
 # Create engine
 engine = create_engine(
     DATABASE_URL,
-    echo=True,  # Set to False in production
-    connect_args={"check_same_thread": False}  # Only needed for SQLite
+    echo=True,  # False in production
+    connect_args={"check_same_thread": False}
 )
 
 # Create session factory
