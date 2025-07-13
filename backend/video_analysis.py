@@ -89,6 +89,18 @@ class VideoAnalyzer:
             analysis = self._analyze_squat(landmarks_list)
         elif exercise_lower in ['bench press', 'bench', 'benchpress']:
             analysis = self._analyze_bench_press(landmarks_list)
+        elif exercise_lower in ['deadlift', 'dead lift']:
+            analysis = self._analyze_deadlift(landmarks_list)
+        elif exercise_lower in ['overhead press', 'shoulder press', 'military press']:
+            analysis = self._analyze_overhead_press(landmarks_list)
+        elif exercise_lower in ['pull up', 'pullup', 'pull-ups', 'pull ups']:
+            analysis = self._analyze_pullup(landmarks_list)
+        elif exercise_lower in ['row', 'barbell row', 'dumbbell row']:
+            analysis = self._analyze_row(landmarks_list)
+        elif exercise_lower in ['lunge', 'lunges']:
+            analysis = self._analyze_lunge(landmarks_list)
+        elif exercise_lower in ['plank', 'planks']:
+            analysis = self._analyze_plank(landmarks_list)
         else:
             analysis = self._analyze_general_exercise(landmarks_list)
         
@@ -224,6 +236,287 @@ class VideoAnalyzer:
         
         return {
             "exercise_type": "bench_press",
+            "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
+            "issues_detected": list(set(issues)),
+            "recommendations": recommendations,
+            "confidence_score": 0.85
+        }
+    
+    def _analyze_deadlift(self, landmarks_list: List) -> Dict:
+        """Analyze deadlift form"""
+        issues = []
+        recommendations = []
+        
+        for frame_landmarks in landmarks_list:
+            if len(frame_landmarks) >= 23:
+                # Check back position (should be straight)
+                shoulder = frame_landmarks[11]
+                hip = frame_landmarks[23]
+                
+                # Check if back is straight
+                if abs(shoulder['y'] - hip['y']) > 0.15:
+                    issues.append("Back not straight - rounding")
+                
+                # Check hip position
+                hip_y = hip['y']
+                knee_y = frame_landmarks[25]['y']
+                if hip_y < knee_y + 0.05:  # Hips too high
+                    issues.append("Hips too high at start")
+                
+                # Check bar path
+                shoulder_x = shoulder['x']
+                hip_x = hip['x']
+                if abs(shoulder_x - hip_x) > 0.1:  # Bar not close to body
+                    issues.append("Bar not close to body")
+        
+        if not issues:
+            recommendations.append("Excellent deadlift form!")
+        else:
+            recommendations.extend([
+                "Keep your back straight",
+                "Start with hips lower",
+                "Keep the bar close to your body",
+                "Drive through your heels",
+                "Lock out at the top"
+            ])
+        
+        return {
+            "exercise_type": "deadlift",
+            "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
+            "issues_detected": list(set(issues)),
+            "recommendations": recommendations,
+            "confidence_score": 0.85
+        }
+    
+    def _analyze_overhead_press(self, landmarks_list: List) -> Dict:
+        """Analyze overhead press form"""
+        issues = []
+        recommendations = []
+        
+        for frame_landmarks in landmarks_list:
+            if len(frame_landmarks) >= 23:
+                # Check shoulder position
+                left_shoulder = frame_landmarks[11]
+                right_shoulder = frame_landmarks[12]
+                
+                # Check if shoulders are level
+                if abs(left_shoulder['y'] - right_shoulder['y']) > 0.05:
+                    issues.append("Shoulders not level")
+                
+                # Check arm position
+                left_elbow = frame_landmarks[13]
+                right_elbow = frame_landmarks[14]
+                
+                # Check if arms are straight at top
+                if left_elbow['y'] > 0.2 or right_elbow['y'] > 0.2:
+                    issues.append("Arms not fully extended")
+                
+                # Check for excessive lean
+                shoulder_y_avg = (left_shoulder['y'] + right_shoulder['y']) / 2
+                hip_y = frame_landmarks[23]['y']
+                if shoulder_y_avg < hip_y - 0.1:  # Excessive lean back
+                    issues.append("Excessive lean back")
+        
+        if not issues:
+            recommendations.append("Excellent overhead press form!")
+        else:
+            recommendations.extend([
+                "Keep shoulders level",
+                "Fully extend arms at top",
+                "Minimize lean back",
+                "Brace your core",
+                "Control the descent"
+            ])
+        
+        return {
+            "exercise_type": "overhead_press",
+            "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
+            "issues_detected": list(set(issues)),
+            "recommendations": recommendations,
+            "confidence_score": 0.85
+        }
+    
+    def _analyze_pullup(self, landmarks_list: List) -> Dict:
+        """Analyze pull-up form"""
+        issues = []
+        recommendations = []
+        
+        for frame_landmarks in landmarks_list:
+            if len(frame_landmarks) >= 23:
+                # Check shoulder position
+                left_shoulder = frame_landmarks[11]
+                right_shoulder = frame_landmarks[12]
+                
+                # Check if shoulders are engaged
+                if left_shoulder['y'] > 0.4 or right_shoulder['y'] > 0.4:
+                    issues.append("Shoulders not properly engaged")
+                
+                # Check elbow position
+                left_elbow = frame_landmarks[13]
+                right_elbow = frame_landmarks[14]
+                
+                # Check if elbows are close to body
+                if abs(left_elbow['x'] - left_shoulder['x']) > 0.1:
+                    issues.append("Elbows too wide")
+                
+                # Check for kipping
+                hip_y = frame_landmarks[23]['y']
+                shoulder_y_avg = (left_shoulder['y'] + right_shoulder['y']) / 2
+                if abs(hip_y - shoulder_y_avg) > 0.2:  # Excessive movement
+                    issues.append("Excessive body swing")
+        
+        if not issues:
+            recommendations.append("Excellent pull-up form!")
+        else:
+            recommendations.extend([
+                "Engage your shoulders",
+                "Keep elbows close to body",
+                "Avoid excessive swinging",
+                "Control the movement",
+                "Full range of motion"
+            ])
+        
+        return {
+            "exercise_type": "pullup",
+            "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
+            "issues_detected": list(set(issues)),
+            "recommendations": recommendations,
+            "confidence_score": 0.85
+        }
+    
+    def _analyze_row(self, landmarks_list: List) -> Dict:
+        """Analyze row form"""
+        issues = []
+        recommendations = []
+        
+        for frame_landmarks in landmarks_list:
+            if len(frame_landmarks) >= 23:
+                # Check back position
+                shoulder = frame_landmarks[11]
+                hip = frame_landmarks[23]
+                
+                # Check if back is straight
+                if abs(shoulder['y'] - hip['y']) > 0.15:
+                    issues.append("Back not straight")
+                
+                # Check elbow position
+                left_elbow = frame_landmarks[13]
+                right_elbow = frame_landmarks[14]
+                
+                # Check if elbows are pulled back
+                if left_elbow['x'] < shoulder['x'] - 0.05:
+                    issues.append("Elbows not pulled back enough")
+                
+                # Check for excessive momentum
+                shoulder_y = shoulder['y']
+                if shoulder_y < 0.3:  # Too much lean forward
+                    issues.append("Excessive forward lean")
+        
+        if not issues:
+            recommendations.append("Excellent row form!")
+        else:
+            recommendations.extend([
+                "Keep your back straight",
+                "Pull elbows back to your sides",
+                "Control the movement",
+                "Squeeze your shoulder blades",
+                "Avoid excessive momentum"
+            ])
+        
+        return {
+            "exercise_type": "row",
+            "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
+            "issues_detected": list(set(issues)),
+            "recommendations": recommendations,
+            "confidence_score": 0.85
+        }
+    
+    def _analyze_lunge(self, landmarks_list: List) -> Dict:
+        """Analyze lunge form"""
+        issues = []
+        recommendations = []
+        
+        for frame_landmarks in landmarks_list:
+            if len(frame_landmarks) >= 23:
+                # Check knee position
+                front_knee = frame_landmarks[25]  # Left knee
+                back_knee = frame_landmarks[27]   # Left ankle
+                
+                # Check if front knee goes past toes
+                if front_knee['x'] > back_knee['x']:
+                    issues.append("Front knee going past toes")
+                
+                # Check depth
+                hip_y = frame_landmarks[23]['y']
+                knee_y = front_knee['y']
+                if hip_y < knee_y + 0.1:  # Not deep enough
+                    issues.append("Not lunging deep enough")
+                
+                # Check balance
+                left_shoulder = frame_landmarks[11]['x']
+                right_shoulder = frame_landmarks[12]['x']
+                if abs(left_shoulder - right_shoulder) > 0.1:  # Not balanced
+                    issues.append("Not maintaining balance")
+        
+        if not issues:
+            recommendations.append("Excellent lunge form!")
+        else:
+            recommendations.extend([
+                "Keep front knee behind toes",
+                "Lunge deeper",
+                "Maintain balance",
+                "Keep chest up",
+                "Step back to starting position"
+            ])
+        
+        return {
+            "exercise_type": "lunge",
+            "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
+            "issues_detected": list(set(issues)),
+            "recommendations": recommendations,
+            "confidence_score": 0.85
+        }
+    
+    def _analyze_plank(self, landmarks_list: List) -> Dict:
+        """Analyze plank form"""
+        issues = []
+        recommendations = []
+        
+        for frame_landmarks in landmarks_list:
+            if len(frame_landmarks) >= 23:
+                # Check body alignment
+                shoulder = frame_landmarks[11]
+                hip = frame_landmarks[23]
+                ankle = frame_landmarks[27]
+                
+                # Check if body is straight
+                if abs(shoulder['y'] - hip['y']) > 0.05:
+                    issues.append("Body not in straight line")
+                
+                # Check hip position
+                if hip['y'] > shoulder['y'] + 0.05:  # Hips too high
+                    issues.append("Hips too high")
+                elif hip['y'] < shoulder['y'] - 0.05:  # Hips too low
+                    issues.append("Hips too low")
+                
+                # Check head position
+                nose = frame_landmarks[0]
+                if nose['y'] < shoulder['y'] - 0.1:  # Head too high
+                    issues.append("Head position too high")
+        
+        if not issues:
+            recommendations.append("Excellent plank form!")
+        else:
+            recommendations.extend([
+                "Keep your body in a straight line",
+                "Engage your core",
+                "Keep your head neutral",
+                "Hold the position",
+                "Breathe steadily"
+            ])
+        
+        return {
+            "exercise_type": "plank",
             "form_rating": "Good" if len(issues) < 2 else "Needs Improvement",
             "issues_detected": list(set(issues)),
             "recommendations": recommendations,
