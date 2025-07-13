@@ -7,7 +7,6 @@ import uuid
 import json
 from datetime import datetime
 
-# Try to import OpenAI, but make it optional
 try:
     from openai import OpenAI
     OPENAI_AVAILABLE = True
@@ -17,6 +16,15 @@ except ImportError:
 
 from database import engine, create_db_and_tables, get_session
 from models import UserProfile, UserProfileCreate, UserProfileResponse, TrainingPlan, TrainingPlanRequest, TrainingPlanResponse, VideoAnalysis, VideoAnalysisRequest, VideoAnalysisResponse
+
+# Import video analyzer
+try:
+    from video_analysis import VideoAnalyzer
+    VIDEO_ANALYSIS_AVAILABLE = True
+    video_analyzer = VideoAnalyzer()
+except ImportError:
+    VIDEO_ANALYSIS_AVAILABLE = False
+    print("Warning: Video analysis dependencies not available. Using mock analysis.")
 
 app = FastAPI(
     title="CoachVision API",
@@ -208,7 +216,7 @@ async def get_user_training_plans(user_id: int, session: Session = Depends(get_s
 
 # Video Analysis endpoints
 def analyze_video_basic(exercise_type: str) -> dict:
-    """Basic mock video analysis"""
+    """Basic mock video analysis (fallback)"""
     analysis_result = {
         "exercise_type": exercise_type,
         "analysis_timestamp": datetime.utcnow().isoformat(),
@@ -272,8 +280,15 @@ async def analyze_video(
             content = await video_file.read()
             f.write(content)
         
-        # Analyze video (basic analysis for now)
-        analysis_data = analyze_video_basic(exercise_type)
+        # Analyze video using real analysis if available
+        if VIDEO_ANALYSIS_AVAILABLE:
+            try:
+                analysis_data = video_analyzer.analyze_video(file_path, exercise_type)
+            except Exception as e:
+                print(f"Video analysis failed: {e}")
+                analysis_data = analyze_video_basic(exercise_type)
+        else:
+            analysis_data = analyze_video_basic(exercise_type)
         
         # Create video analysis record
         video_analysis = VideoAnalysis(
