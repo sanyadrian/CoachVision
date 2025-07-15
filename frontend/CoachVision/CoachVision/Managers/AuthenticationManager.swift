@@ -8,13 +8,22 @@ class AuthenticationManager: ObservableObject {
     @Published var errorMessage: String?
     
     private let baseURL = "http://localhost:8000"
-    private var authToken: String?
+    var authToken: String?
     
     init() {
+        // Clear cache for debugging (remove this line later)
+        UserDefaults.standard.removeObject(forKey: "authToken")
+        
         // Check for saved token on app launch
         if let token = UserDefaults.standard.string(forKey: "authToken") {
             self.authToken = token
             self.isAuthenticated = true
+        }
+    }
+    
+    func initializeUserProfile() async {
+        if let token = authToken, isAuthenticated {
+            await fetchCurrentUser()
         }
     }
     
@@ -63,8 +72,22 @@ class AuthenticationManager: ObservableObject {
         )
     }
     
+    func fetchCurrentUser() async {
+        await performRequest(
+            endpoint: "/auth/me",
+            method: "GET",
+            body: [:]
+        )
+    }
+    
     private func performRequest(endpoint: String, method: String, body: [String: Any]) async {
-        guard let token = authToken else { return }
+        guard let token = authToken else { 
+            print("No auth token available")
+            return 
+        }
+        
+        print("Making request to: \(endpoint)")
+        print("Token: \(token.prefix(20))...")
         
         await MainActor.run {
             isLoading = true
@@ -81,9 +104,12 @@ class AuthenticationManager: ObservableObject {
         
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        if method != "GET" {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        }
         
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -92,15 +118,32 @@ class AuthenticationManager: ObservableObject {
                 isLoading = false
                 
                 if let httpResponse = response as? HTTPURLResponse {
+                    print("Response status: \(httpResponse.statusCode)")
                     if httpResponse.statusCode == 200 || httpResponse.statusCode == 201 {
                         if let userResponse = try? JSONDecoder().decode(UserProfile.self, from: data) {
+                            print("Successfully updated user profile")
+                            print("User age: \(userResponse.age ?? -1)")
+                            print("User weight: \(userResponse.weight ?? -1)")
+                            print("User height: \(userResponse.height ?? -1)")
+                            print("User fitness goal: \(userResponse.fitnessGoal ?? "nil")")
+                            print("User experience level: \(userResponse.experienceLevel ?? "nil")")
+                            print("Is profile complete: \(userResponse.isProfileComplete)")
+                            
                             self.currentUser = userResponse
+                            // Clear any error messages on success
+                            self.errorMessage = nil
+                        } else {
+                            print("Failed to decode user response")
+                            print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
                         }
                     } else {
+                        print("Request failed with status: \(httpResponse.statusCode)")
                         if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
                             self.errorMessage = errorResponse.detail
+                            print("Error detail: \(errorResponse.detail)")
                         } else {
                             self.errorMessage = "Request failed with status: \(httpResponse.statusCode)"
+                            print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
                         }
                     }
                 }
@@ -141,6 +184,8 @@ class AuthenticationManager: ObservableObject {
             request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         }
         
+        var shouldFetchUser = false
+        
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             
@@ -155,6 +200,7 @@ class AuthenticationManager: ObservableObject {
                                 self.authToken = tokenResponse.access_token
                                 UserDefaults.standard.set(tokenResponse.access_token, forKey: "authToken")
                                 self.isAuthenticated = true
+                                shouldFetchUser = true
                             }
                         } else {
                             // Handle registration response
@@ -171,6 +217,11 @@ class AuthenticationManager: ObservableObject {
                         }
                     }
                 }
+            }
+            
+            // Fetch user profile after successful login (outside MainActor)
+            if shouldFetchUser {
+                await fetchCurrentUser()
             }
         } catch {
             await MainActor.run {

@@ -25,6 +25,11 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut, value: authManager.isAuthenticated)
+        .onAppear {
+            print("ContentView - isAuthenticated: \(authManager.isAuthenticated)")
+            print("ContentView - currentUser: \(authManager.currentUser?.name ?? "nil")")
+            print("ContentView - isProfileComplete: \(authManager.currentUser?.isProfileComplete ?? false)")
+        }
     }
 }
 

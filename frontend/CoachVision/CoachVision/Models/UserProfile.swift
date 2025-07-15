@@ -4,7 +4,6 @@ enum FitnessGoal: String, CaseIterable, Codable {
     case weightLoss = "weight_loss"
     case muscleGain = "muscle_gain"
     case generalFitness = "general_fitness"
-    case strengthTraining = "strength_training"
     case endurance = "endurance"
     case flexibility = "flexibility"
     
@@ -13,7 +12,6 @@ enum FitnessGoal: String, CaseIterable, Codable {
         case .weightLoss: return "Weight Loss"
         case .muscleGain: return "Muscle Gain"
         case .generalFitness: return "General Fitness"
-        case .strengthTraining: return "Strength Training"
         case .endurance: return "Endurance"
         case .flexibility: return "Flexibility"
         }

@@ -16,6 +16,9 @@ struct CoachVisionApp: App {
             ContentView()
                 .environmentObject(authManager)
                 .preferredColorScheme(.dark)
+                .task {
+                    await authManager.initializeUserProfile()
+                }
         }
     }
 }

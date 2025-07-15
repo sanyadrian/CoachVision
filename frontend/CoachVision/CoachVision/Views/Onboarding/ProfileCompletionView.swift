@@ -304,6 +304,13 @@ struct ProfileCompletionView: View {
               let weightDouble = Double(weight),
               let heightDouble = Double(height) else { return }
         
+        print("Completing profile with data:")
+        print("- Age: \(ageInt)")
+        print("- Weight: \(weightDouble)")
+        print("- Height: \(heightDouble)")
+        print("- Fitness Goal: \(selectedFitnessGoal.rawValue)")
+        print("- Experience Level: \(selectedExperienceLevel.rawValue)")
+        
         await authManager.completeProfile(
             age: ageInt,
             weight: weightDouble,
@@ -311,6 +318,13 @@ struct ProfileCompletionView: View {
             fitnessGoal: selectedFitnessGoal.rawValue,
             experienceLevel: selectedExperienceLevel.rawValue
         )
+        
+        print("Profile completion finished")
+        print("Current user: \(authManager.currentUser?.name ?? "nil")")
+        print("Is profile complete: \(authManager.currentUser?.isProfileComplete ?? false)")
+        
+        // Add a small delay to ensure the UI updates
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
     }
 }
 

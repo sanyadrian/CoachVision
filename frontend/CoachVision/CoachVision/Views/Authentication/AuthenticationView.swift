@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AuthenticationView: View {
+    @EnvironmentObject var authManager: AuthenticationManager
     @State private var selectedTab = 0
     
     var body: some View {
@@ -36,6 +37,17 @@ struct AuthenticationView: View {
                     }
                     .padding(.top, 60)
                     .padding(.bottom, 40)
+                    
+                    // Debug button to clear cache (remove this later)
+                    Button("Clear Cache (Debug)") {
+                        UserDefaults.standard.removeObject(forKey: "authToken")
+                        authManager.authToken = nil
+                        authManager.isAuthenticated = false
+                        authManager.currentUser = nil
+                    }
+                    .foregroundColor(.red)
+                    .font(.caption)
+                    .padding(.bottom, 20)
                     
                     // Tab selector
                     HStack(spacing: 0) {
