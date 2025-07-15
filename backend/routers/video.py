@@ -9,6 +9,7 @@ from database import get_session
 from models import (
     UserProfile, VideoAnalysis, VideoAnalysisRequest, VideoAnalysisResponse
 )
+from routers.auth import verify_token
 
 router = APIRouter()
 
@@ -61,9 +62,14 @@ async def analyze_video(
     user_id: int,
     exercise_type: str,
     video_file: UploadFile = File(...),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
-    """Upload and analyze a video"""
+    """Upload and analyze a video (authenticated users can only analyze videos for themselves)"""
+    
+    # Verify user can only analyze videos for themselves
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to analyze videos for other users")
     
     # Check if user exists
     user = session.get(UserProfile, user_id)
@@ -112,34 +118,47 @@ async def analyze_video(
 @router.get("/user/{user_id}", response_model=List[VideoAnalysisResponse])
 async def get_user_video_analyses(
     user_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
-    """Get all video analyses for a user"""
-    analyses = session.exec(
+    """Get all video analyses for a user (authenticated users can only access their own analyses)"""
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access other users' video analyses")
+    
+    analyses = session.execute(
         select(VideoAnalysis).where(VideoAnalysis.user_id == user_id)
-    ).all()
+    ).scalars().all()
     return analyses
 
 @router.get("/{analysis_id}", response_model=VideoAnalysisResponse)
 async def get_video_analysis(
     analysis_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
-    """Get a specific video analysis"""
+    """Get a specific video analysis (authenticated users can only access their own analyses)"""
     analysis = session.get(VideoAnalysis, analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="Video analysis not found")
+    
+    if analysis.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this video analysis")
+    
     return analysis
 
 @router.delete("/{analysis_id}")
 async def delete_video_analysis(
     analysis_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
-    """Delete a video analysis and its associated file"""
+    """Delete a video analysis and its associated file (authenticated users can only delete their own analyses)"""
     analysis = session.get(VideoAnalysis, analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="Video analysis not found")
+    
+    if analysis.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this video analysis")
     
     # Delete the video file
     file_path = os.path.join(UPLOAD_DIR, analysis.video_filename)
@@ -154,12 +173,16 @@ async def delete_video_analysis(
 @router.get("/download/{analysis_id}")
 async def download_video(
     analysis_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
-    """Download the video file for a specific analysis"""
+    """Download the video file for a specific analysis (authenticated users can only download their own videos)"""
     analysis = session.get(VideoAnalysis, analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="Video analysis not found")
+    
+    if analysis.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to download this video")
     
     file_path = os.path.join(UPLOAD_DIR, analysis.video_filename)
     if not os.path.exists(file_path):

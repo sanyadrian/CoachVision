@@ -17,12 +17,14 @@ class ExperienceLevel(str, Enum):
 
 class UserProfile(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(max_length=255, unique=True, index=True)
     name: str = Field(max_length=100)
-    age: int = Field(ge=1, le=120)
-    weight: float = Field(ge=20, le=300)  # in kg
-    height: float = Field(ge=100, le=250)  # in cm
-    fitness_goal: FitnessGoal
-    experience_level: ExperienceLevel
+    age: Optional[int] = Field(default=None, ge=1, le=120)
+    weight: Optional[float] = Field(default=None, ge=20, le=300)  # in kg
+    height: Optional[float] = Field(default=None, ge=100, le=250)  # in cm
+    fitness_goal: Optional[FitnessGoal] = Field(default=None)
+    experience_level: Optional[ExperienceLevel] = Field(default=None)
+    hashed_password: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -45,6 +47,7 @@ class VideoAnalysis(SQLModel, table=True):
 
 # Pydantic models for API requests/responses
 class UserProfileCreate(SQLModel):
+    email: str
     name: str
     age: int
     weight: float
@@ -54,12 +57,13 @@ class UserProfileCreate(SQLModel):
 
 class UserProfileResponse(SQLModel):
     id: int
+    email: str
     name: str
-    age: int
-    weight: float
-    height: float
-    fitness_goal: FitnessGoal
-    experience_level: ExperienceLevel
+    age: Optional[int] = None
+    weight: Optional[float] = None
+    height: Optional[float] = None
+    fitness_goal: Optional[FitnessGoal] = None
+    experience_level: Optional[ExperienceLevel] = None
     created_at: datetime
 
 class TrainingPlanRequest(SQLModel):

@@ -8,6 +8,7 @@ from database import get_session
 from models import (
     UserProfile, TrainingPlan, TrainingPlanRequest, TrainingPlanResponse
 )
+from routers.auth import verify_token
 
 router = APIRouter()
 
@@ -24,9 +25,14 @@ def get_openai_client():
 @router.post("/generate", response_model=TrainingPlanResponse)
 async def generate_training_plan(
     request: TrainingPlanRequest,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
     """Generate a personalized training plan using OpenAI"""
+    
+    # Verify user can only generate plans for themselves
+    if current_user.id != request.user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to generate plans for other users")
     
     # Get user profile
     user = session.get(UserProfile, request.user_id)
@@ -91,34 +97,47 @@ async def generate_training_plan(
 @router.get("/user/{user_id}", response_model=List[TrainingPlanResponse])
 async def get_user_training_plans(
     user_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
-    """Get all training plans for a user"""
-    plans = session.exec(
+    """Get all training plans for a user (authenticated users can only access their own plans)"""
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access other users' plans")
+    
+    plans = session.execute(
         select(TrainingPlan).where(TrainingPlan.user_id == user_id)
-    ).all()
+    ).scalars().all()
     return plans
 
 @router.get("/{plan_id}", response_model=TrainingPlanResponse)
 async def get_training_plan(
     plan_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
-    """Get a specific training plan"""
+    """Get a specific training plan (authenticated users can only access their own plans)"""
     plan = session.get(TrainingPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Training plan not found")
+    
+    if plan.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this plan")
+    
     return plan
 
 @router.delete("/{plan_id}")
 async def delete_training_plan(
     plan_id: int,
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
 ):
-    """Delete a training plan"""
+    """Delete a training plan (authenticated users can only delete their own plans)"""
     plan = session.get(TrainingPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Training plan not found")
+    
+    if plan.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this plan")
     
     session.delete(plan)
     session.commit()

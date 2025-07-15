@@ -5,6 +5,10 @@ class Settings:
     # Database
     DATABASE_URL: str = config("DATABASE_URL", default="sqlite:///./coachvision.db")
     
+    # JWT Authentication
+    SECRET_KEY: str = config("SECRET_KEY", default="your-secret-key-here")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = config("ACCESS_TOKEN_EXPIRE_MINUTES", default=30, cast=int)
+    
     # OpenAI
     OPENAI_API_KEY: str = config("OPENAI_API_KEY", default="")
     
