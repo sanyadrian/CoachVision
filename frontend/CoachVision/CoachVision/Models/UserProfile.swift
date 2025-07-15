@@ -1,5 +1,39 @@
 import Foundation
 
+enum FitnessGoal: String, CaseIterable, Codable {
+    case weightLoss = "weight_loss"
+    case muscleGain = "muscle_gain"
+    case generalFitness = "general_fitness"
+    case strengthTraining = "strength_training"
+    case endurance = "endurance"
+    case flexibility = "flexibility"
+    
+    var displayName: String {
+        switch self {
+        case .weightLoss: return "Weight Loss"
+        case .muscleGain: return "Muscle Gain"
+        case .generalFitness: return "General Fitness"
+        case .strengthTraining: return "Strength Training"
+        case .endurance: return "Endurance"
+        case .flexibility: return "Flexibility"
+        }
+    }
+}
+
+enum ExperienceLevel: String, CaseIterable, Codable {
+    case beginner = "beginner"
+    case intermediate = "intermediate"
+    case advanced = "advanced"
+    
+    var displayName: String {
+        switch self {
+        case .beginner: return "Beginner"
+        case .intermediate: return "Intermediate"
+        case .advanced: return "Advanced"
+        }
+    }
+}
+
 struct UserProfile: Codable, Identifiable {
     let id: Int
     let email: String

@@ -13,24 +13,15 @@ struct ContentView: View {
     var body: some View {
         Group {
             if authManager.isAuthenticated {
-                // TODO: Show main app
-                VStack {
-                    Text("Welcome to CoachVision!")
-                        .font(.title)
-                        .foregroundColor(.white)
-                    
-                    Button("Logout") {
-                        authManager.logout()
-                    }
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(Color.red)
-                    .cornerRadius(8)
+                if let user = authManager.currentUser, user.isProfileComplete {
+                    // Show main dashboard
+                    DashboardView()
+                } else {
+                    // Show profile completion
+                    ProfileCompletionView()
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
             } else {
-                LoginView()
+                AuthenticationView()
             }
         }
         .animation(.easeInOut, value: authManager.isAuthenticated)

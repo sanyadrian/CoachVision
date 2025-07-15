@@ -49,6 +49,70 @@ class AuthenticationManager: ObservableObject {
         currentUser = nil
     }
     
+    func completeProfile(age: Int, weight: Double, height: Double, fitnessGoal: String, experienceLevel: String) async {
+        await performRequest(
+            endpoint: "/auth/complete-profile",
+            method: "POST",
+            body: [
+                "age": age,
+                "weight": weight,
+                "height": height,
+                "fitness_goal": fitnessGoal,
+                "experience_level": experienceLevel
+            ]
+        )
+    }
+    
+    private func performRequest(endpoint: String, method: String, body: [String: Any]) async {
+        guard let token = authToken else { return }
+        
+        await MainActor.run {
+            isLoading = true
+            errorMessage = nil
+        }
+        
+        guard let url = URL(string: baseURL + endpoint) else {
+            await MainActor.run {
+                errorMessage = "Invalid URL"
+                isLoading = false
+            }
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            
+            await MainActor.run {
+                isLoading = false
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 200 || httpResponse.statusCode == 201 {
+                        if let userResponse = try? JSONDecoder().decode(UserProfile.self, from: data) {
+                            self.currentUser = userResponse
+                        }
+                    } else {
+                        if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                            self.errorMessage = errorResponse.detail
+                        } else {
+                            self.errorMessage = "Request failed with status: \(httpResponse.statusCode)"
+                        }
+                    }
+                }
+            }
+        } catch {
+            await MainActor.run {
+                isLoading = false
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+    
     private func performAuthRequest(endpoint: String, method: String, body: [String: Any], isLogin: Bool = false) async {
         await MainActor.run {
             isLoading = true
