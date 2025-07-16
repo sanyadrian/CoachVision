@@ -14,8 +14,8 @@ struct ContentView: View {
         Group {
             if authManager.isAuthenticated {
                 if let user = authManager.currentUser, user.isProfileComplete {
-                    // Show main dashboard
-                    DashboardView()
+                    // Show main app with tab navigation
+                    MainTabView()
                 } else {
                     // Show profile completion
                     ProfileCompletionView()

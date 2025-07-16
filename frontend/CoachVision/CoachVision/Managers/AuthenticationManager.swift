@@ -11,9 +11,6 @@ class AuthenticationManager: ObservableObject {
     var authToken: String?
     
     init() {
-        // Clear cache for debugging (remove this line later)
-        UserDefaults.standard.removeObject(forKey: "authToken")
-        
         // Check for saved token on app launch
         if let token = UserDefaults.standard.string(forKey: "authToken") {
             self.authToken = token
@@ -25,6 +22,14 @@ class AuthenticationManager: ObservableObject {
         if let token = authToken, isAuthenticated {
             await fetchCurrentUser()
         }
+    }
+    
+    private func handleAuthError() {
+        // Clear invalid token and reset authentication state
+        UserDefaults.standard.removeObject(forKey: "authToken")
+        authToken = nil
+        isAuthenticated = false
+        currentUser = nil
     }
     
     func register(email: String, name: String, password: String) async {
@@ -138,12 +143,20 @@ class AuthenticationManager: ObservableObject {
                         }
                     } else {
                         print("Request failed with status: \(httpResponse.statusCode)")
-                        if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
-                            self.errorMessage = errorResponse.detail
-                            print("Error detail: \(errorResponse.detail)")
+                        
+                        // Handle 401 Unauthorized - clear invalid token
+                        if httpResponse.statusCode == 401 {
+                            print("Token is invalid, clearing authentication state")
+                            self.handleAuthError()
+                            self.errorMessage = "Session expired. Please login again."
                         } else {
-                            self.errorMessage = "Request failed with status: \(httpResponse.statusCode)"
-                            print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
+                            if let errorResponse = try? JSONDecoder().decode(ErrorResponse.self, from: data) {
+                                self.errorMessage = errorResponse.detail
+                                print("Error detail: \(errorResponse.detail)")
+                            } else {
+                                self.errorMessage = "Request failed with status: \(httpResponse.statusCode)"
+                                print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
+                            }
                         }
                     }
                 }

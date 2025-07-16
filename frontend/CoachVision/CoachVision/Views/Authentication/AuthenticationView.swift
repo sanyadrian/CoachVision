@@ -38,7 +38,7 @@ struct AuthenticationView: View {
                     .padding(.top, 60)
                     .padding(.bottom, 40)
                     
-                    // Debug button to clear cache (remove this later)
+                    // Debug button to clear cache (temporary)
                     Button("Clear Cache (Debug)") {
                         UserDefaults.standard.removeObject(forKey: "authToken")
                         authManager.authToken = nil

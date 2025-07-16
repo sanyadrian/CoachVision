@@ -86,16 +86,6 @@ struct DashboardView: View {
                         }
                         .padding(.horizontal, 20)
                         
-                        // Logout button
-                        Button("Logout") {
-                            authManager.logout()
-                        }
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.red)
-                        .cornerRadius(25)
-                        .padding(.horizontal, 20)
-                        
                         Spacer(minLength: 100)
                     }
                 }
