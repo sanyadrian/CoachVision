@@ -118,4 +118,39 @@ dmypy.json
 node_modules/
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log* 
+yarn-error.log*
+
+# Xcode
+## User settings
+xcuserdata/
+*.xcuserstate
+
+## App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Playgrounds
+timeline.xctimeline
+playground.xcworkspace
+
+# Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# Code Injection
+iOSInjectionProject/ 
