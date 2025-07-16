@@ -3,6 +3,7 @@ import SwiftUI
 struct TrainingPlansView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var showingCreatePlan = false
+    @State private var plansCount = 0
     
     var body: some View {
         NavigationView {
@@ -57,21 +58,63 @@ struct TrainingPlansView: View {
                         
                         // Plans List
                         VStack(spacing: 16) {
-                            Text("Your Plans")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            HStack {
+                                Text("Your Plans")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                Spacer()
+                                
+                                                                                        // Debug info
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("(\(plansCount) plans)")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                Text("Loading: \(authManager.trainingPlanManager.isLoading ? "Yes" : "No")")
+                                    .font(.caption2)
+                                    .foregroundColor(.gray)
+                            }
                             
-                            // Placeholder for plans
-                            VStack(spacing: 12) {
-                                ForEach(0..<3) { index in
-                                    PlanCard(
-                                        title: "Weekly Plan \(index + 1)",
-                                        subtitle: "Strength Training",
-                                        progress: Double(index + 1) / 3.0,
-                                        isActive: index == 0
-                                    )
+                            if authManager.trainingPlanManager.isLoading {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    .scaleEffect(0.8)
+                            }
+                        }
+                        
+                        if plansCount == 0 && !authManager.trainingPlanManager.isLoading {
+                                // Empty state
+                                VStack(spacing: 16) {
+                                    Image(systemName: "dumbbell")
+                                        .font(.system(size: 60))
+                                        .foregroundColor(.gray)
+                                    
+                                    Text("No plans yet")
+                                        .font(.headline)
+                                        .foregroundColor(.gray)
+                                    
+                                    Text("Create your first training plan to get started")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                        .multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 200)
+                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(16)
+                            } else {
+                                // Plans list
+                                VStack(spacing: 12) {
+                                    ForEach(authManager.trainingPlanManager.plans) { plan in
+                                        PlanCard(
+                                            title: plan.title,
+                                            subtitle: plan.subtitle,
+                                            progress: plan.progress,
+                                            isActive: plan.isActive,
+                                            date: plan.formattedDate
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -86,6 +129,26 @@ struct TrainingPlansView: View {
         .sheet(isPresented: $showingCreatePlan) {
             CreatePlanView()
         }
+        .task {
+            // Fetch plans when view appears
+            if let userId = authManager.currentUser?.id {
+                print("Task: Fetching plans for user \(userId)")
+                await authManager.trainingPlanManager.fetchPlans(userId: userId)
+                print("Task: Plans count after fetch: \(authManager.trainingPlanManager.plans.count)")
+                plansCount = authManager.trainingPlanManager.plans.count
+            }
+        }
+        .refreshable {
+            // Pull to refresh
+            if let userId = authManager.currentUser?.id {
+                await authManager.trainingPlanManager.fetchPlans(userId: userId)
+                plansCount = authManager.trainingPlanManager.plans.count
+            }
+        }
+        .onReceive(authManager.trainingPlanManager.$plans) { plans in
+            plansCount = plans.count
+            print("onReceive: Plans count updated to \(plans.count)")
+        }
     }
 }
 
@@ -94,6 +157,7 @@ struct PlanCard: View {
     let subtitle: String
     let progress: Double
     let isActive: Bool
+    let date: String
     
     var body: some View {
         Button(action: {
@@ -109,6 +173,10 @@ struct PlanCard: View {
                         
                         Text(subtitle)
                             .font(.subheadline)
+                            .foregroundColor(.gray)
+                        
+                        Text(date)
+                            .font(.caption)
                             .foregroundColor(.gray)
                     }
                     
@@ -154,8 +222,15 @@ struct PlanCard: View {
 
 struct CreatePlanView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authManager: AuthenticationManager
     @State private var planType = "weekly"
     @State private var focusArea = "strength"
+    @State private var isCreating = false
+    
+    private var userFitnessGoal: String {
+        guard let goal = authManager.currentUser?.fitnessGoal else { return "general_fitness" }
+        return goal
+    }
     
     var body: some View {
         NavigationView {
@@ -167,6 +242,46 @@ struct CreatePlanView: View {
                         .font(.title)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
+                    
+                    // User Profile Info
+                    VStack(spacing: 12) {
+                        Text("Personalized for you")
+                            .font(.headline)
+                            .foregroundColor(.gray)
+                        
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Goal: \(userFitnessGoal.replacingOccurrences(of: "_", with: " ").capitalized)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                
+                                if let experience = authManager.currentUser?.experienceLevel {
+                                    Text("Level: \(experience.capitalized)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .trailing, spacing: 4) {
+                                if let age = authManager.currentUser?.age {
+                                    Text("Age: \(age)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.white)
+                                }
+                                
+                                if let weight = authManager.currentUser?.weight {
+                                    Text("Weight: \(Int(weight)) kg")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(16)
                     
                     VStack(spacing: 16) {
                         // Plan Type
@@ -183,19 +298,17 @@ struct CreatePlanView: View {
                             .pickerStyle(SegmentedPickerStyle())
                         }
                         
-                        // Focus Area
+                        // Plan Duration
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Focus Area")
+                            Text("Plan Duration")
                                 .font(.headline)
                                 .foregroundColor(.white)
                             
-                            Picker("Focus Area", selection: $focusArea) {
-                                Text("Strength").tag("strength")
-                                Text("Cardio").tag("cardio")
-                                Text("Flexibility").tag("flexibility")
-                                Text("Mixed").tag("mixed")
-                            }
-                            .pickerStyle(SegmentedPickerStyle())
+                            Text("Your plan will be personalized based on your fitness goal: \(userFitnessGoal.replacingOccurrences(of: "_", with: " ").capitalized)")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                                .padding(.top, 8)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -204,8 +317,20 @@ struct CreatePlanView: View {
                     
                     // Create Button
                     Button("Create Plan") {
-                        // TODO: Create plan logic
-                        dismiss()
+                        Task {
+                            isCreating = true
+                            await authManager.trainingPlanManager.createPlan(
+                                planType: planType,
+                                focusArea: focusArea,
+                                userId: authManager.currentUser?.id ?? 0
+                            )
+                            // Refresh plans after creation
+                            if let userId = authManager.currentUser?.id {
+                                await authManager.trainingPlanManager.fetchPlans(userId: userId)
+                            }
+                            isCreating = false
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.black)
                     .frame(maxWidth: .infinity)
@@ -213,6 +338,14 @@ struct CreatePlanView: View {
                     .background(Color.white)
                     .cornerRadius(25)
                     .padding(.horizontal, 20)
+                    .disabled(isCreating)
+                    .opacity(isCreating ? 0.6 : 1.0)
+                    
+                    if isCreating {
+                        ProgressView("Creating plan...")
+                            .foregroundColor(.white)
+                            .padding(.top, 8)
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)

@@ -10,6 +10,9 @@ class AuthenticationManager: ObservableObject {
     private let baseURL = "http://localhost:8000"
     var authToken: String?
     
+    // Training Plan Manager
+    lazy var trainingPlanManager = TrainingPlanManager(authToken: authToken)
+    
     init() {
         // Check for saved token on app launch
         if let token = UserDefaults.standard.string(forKey: "authToken") {
@@ -214,6 +217,9 @@ class AuthenticationManager: ObservableObject {
                                 UserDefaults.standard.set(tokenResponse.access_token, forKey: "authToken")
                                 self.isAuthenticated = true
                                 shouldFetchUser = true
+                                
+                                // Update training plan manager with new token
+                                self.trainingPlanManager.updateAuthToken(tokenResponse.access_token)
                             }
                         } else {
                             // Handle registration response

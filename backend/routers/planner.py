@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 from typing import List
 import json
 import os
-from openai import OpenAI
+import openai
 from database import get_session
 from models import (
     UserProfile, TrainingPlan, TrainingPlanRequest, TrainingPlanResponse
@@ -20,7 +20,8 @@ def get_openai_client():
             status_code=500, 
             detail="OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
         )
-    return OpenAI(api_key=api_key)
+    openai.api_key = api_key
+    return openai
 
 @router.post("/generate", response_model=TrainingPlanResponse)
 async def generate_training_plan(
@@ -64,7 +65,7 @@ async def generate_training_plan(
         client = get_openai_client()
         
         # Call OpenAI API
-        response = client.chat.completions.create(
+        response = client.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a professional fitness coach and nutritionist. Provide detailed, actionable advice."},

@@ -91,6 +91,7 @@ struct ProfileView: View {
                             
                             LazyVGrid(columns: [
                                 GridItem(.flexible()),
+                                GridItem(.flexible()),
                                 GridItem(.flexible())
                             ], spacing: 16) {
                                 StatCard(
@@ -115,6 +116,18 @@ struct ProfileView: View {
                                     title: "BMI",
                                     value: String(format: "%.1f", calculateBMI()),
                                     icon: "chart.bar"
+                                )
+                                
+                                StatCard(
+                                    title: "Goal",
+                                    value: formatFitnessGoal(),
+                                    icon: "target"
+                                )
+                                
+                                StatCard(
+                                    title: "Level",
+                                    value: formatExperienceLevel(),
+                                    icon: "star"
                                 )
                             }
                         }
@@ -201,6 +214,16 @@ struct ProfileView: View {
         let heightInMeters = height / 100
         return weight / (heightInMeters * heightInMeters)
     }
+    
+    private func formatFitnessGoal() -> String {
+        guard let goal = authManager.currentUser?.fitnessGoal else { return "Not set" }
+        return goal.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+    
+    private func formatExperienceLevel() -> String {
+        guard let level = authManager.currentUser?.experienceLevel else { return "Not set" }
+        return level.capitalized
+    }
 }
 
 struct StatCard: View {
@@ -267,6 +290,8 @@ struct EditProfileView: View {
     @State private var age = ""
     @State private var weight = ""
     @State private var height = ""
+    @State private var selectedFitnessGoal = FitnessGoal.generalFitness
+    @State private var selectedExperienceLevel = ExperienceLevel.beginner
     
     var body: some View {
         NavigationView {
@@ -323,6 +348,44 @@ struct EditProfileView: View {
                                     .textFieldStyle(CustomTextFieldStyle())
                                     .keyboardType(.decimalPad)
                             }
+                            
+                            // Fitness Goal
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Fitness Goal")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                Picker("Fitness Goal", selection: $selectedFitnessGoal) {
+                                    ForEach(FitnessGoal.allCases, id: \.self) { goal in
+                                        Text(goal.displayName).tag(goal)
+                                    }
+                                }
+                                .pickerStyle(MenuPickerStyle())
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(12)
+                                .foregroundColor(.white)
+                            }
+                            
+                            // Experience Level
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Experience Level")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                Picker("Experience Level", selection: $selectedExperienceLevel) {
+                                    ForEach(ExperienceLevel.allCases, id: \.self) { level in
+                                        Text(level.displayName).tag(level)
+                                    }
+                                }
+                                .pickerStyle(MenuPickerStyle())
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(12)
+                                .foregroundColor(.white)
+                            }
                         }
                         .padding(.horizontal, 20)
                         
@@ -330,8 +393,10 @@ struct EditProfileView: View {
                         
                         // Save Button
                         Button("Save Changes") {
-                            // TODO: Update profile
-                            dismiss()
+                            Task {
+                                await updateProfile()
+                                dismiss()
+                            }
                         }
                         .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
@@ -357,8 +422,33 @@ struct EditProfileView: View {
                 age = String(authManager.currentUser?.age ?? 0)
                 weight = String(authManager.currentUser?.weight ?? 0)
                 height = String(authManager.currentUser?.height ?? 0)
+                
+                // Load current fitness goal and experience level
+                if let goal = authManager.currentUser?.fitnessGoal,
+                   let fitnessGoal = FitnessGoal(rawValue: goal) {
+                    selectedFitnessGoal = fitnessGoal
+                }
+                
+                if let level = authManager.currentUser?.experienceLevel,
+                   let experienceLevel = ExperienceLevel(rawValue: level) {
+                    selectedExperienceLevel = experienceLevel
+                }
             }
         }
+    }
+    
+    private func updateProfile() async {
+        guard let ageInt = Int(age),
+              let weightDouble = Double(weight),
+              let heightDouble = Double(height) else { return }
+        
+        await authManager.completeProfile(
+            age: ageInt,
+            weight: weightDouble,
+            height: heightDouble,
+            fitnessGoal: selectedFitnessGoal.rawValue,
+            experienceLevel: selectedExperienceLevel.rawValue
+        )
     }
 }
 
