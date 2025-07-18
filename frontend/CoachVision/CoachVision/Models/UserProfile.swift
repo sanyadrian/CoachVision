@@ -73,6 +73,7 @@ struct TrainingPlan: Codable, Identifiable {
     let content: String
     let createdAt: String
     let isActive: Bool
+    var completedDays: Set<String> // Track completed days
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -81,6 +82,18 @@ struct TrainingPlan: Codable, Identifiable {
         case content
         case createdAt = "created_at"
         case isActive = "is_active"
+        case completedDays
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        userId = try container.decode(Int.self, forKey: .userId)
+        planType = try container.decode(String.self, forKey: .planType)
+        content = try container.decode(String.self, forKey: .content)
+        createdAt = try container.decode(String.self, forKey: .createdAt)
+        isActive = try container.decode(Bool.self, forKey: .isActive)
+        completedDays = try container.decodeIfPresent(Set<String>.self, forKey: .completedDays) ?? []
     }
     
     // Computed properties for display
@@ -97,8 +110,9 @@ struct TrainingPlan: Codable, Identifiable {
     }
     
     var progress: Double {
-        // For now, return a random progress. In a real app, this would be calculated from user activity
-        return Double.random(in: 0.1...0.9)
+        // Calculate progress based on completed days
+        let totalDays = 7.0 // Weekly plans have 7 days
+        return Double(completedDays.count) / totalDays
     }
     
     var formattedDate: String {
@@ -111,5 +125,20 @@ struct TrainingPlan: Codable, Identifiable {
             return formatter.string(from: date)
         }
         return "Recent"
+    }
+    
+    // Helper method to check if a day is completed
+    func isDayCompleted(_ day: String) -> Bool {
+        return completedDays.contains(day.lowercased())
+    }
+    
+    // Helper method to toggle day completion
+    mutating func toggleDayCompletion(_ day: String) {
+        let dayKey = day.lowercased()
+        if completedDays.contains(dayKey) {
+            completedDays.remove(dayKey)
+        } else {
+            completedDays.insert(dayKey)
+        }
     }
 } 

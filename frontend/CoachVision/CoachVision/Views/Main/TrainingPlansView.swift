@@ -291,18 +291,23 @@ struct CreatePlanView: View {
                     .cornerRadius(16)
                     
                     VStack(spacing: 16) {
-                        // Plan Type
+                        // Plan Type (Weekly Only)
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Plan Type")
                                 .font(.headline)
                                 .foregroundColor(.white)
                             
-                            Picker("Plan Type", selection: $planType) {
-                                Text("Weekly").tag("weekly")
-                                Text("Monthly").tag("monthly")
-                                Text("Custom").tag("custom")
+                            HStack {
+                                Text("Weekly")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.green.opacity(0.2))
+                                    .cornerRadius(8)
+                                
+                                Spacer()
                             }
-                            .pickerStyle(SegmentedPickerStyle())
                         }
                         
                         // Plan Duration
@@ -311,7 +316,7 @@ struct CreatePlanView: View {
                                 .font(.headline)
                                 .foregroundColor(.white)
                             
-                            Text("Your plan will be personalized based on your fitness goal: \(userFitnessGoal.replacingOccurrences(of: "_", with: " ").capitalized)")
+                            Text("7-day personalized plan starting from today")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                                 .multilineTextAlignment(.center)
@@ -471,7 +476,7 @@ struct PlanDetailView: View {
                             
                             // Parse and display the JSON content
                             if let planData = parsePlanContent(plan.content) {
-                                PlanContentView(planData: planData, planCreatedAt: plan.createdAt)
+                                PlanContentView(planData: planData, planCreatedAt: plan.createdAt, plan: plan)
                             } else {
                                 // Fallback: show raw content
                                 Text("Raw Plan Content:")
@@ -570,16 +575,34 @@ struct PlanDetailView: View {
 struct PlanContentView: View {
     let planData: [String: Any]
     let planCreatedAt: String
+    let plan: TrainingPlan
+    @State private var completedDays: Set<String>
+    
+    init(planData: [String: Any], planCreatedAt: String, plan: TrainingPlan) {
+        self.planData = planData
+        self.planCreatedAt = planCreatedAt
+        self.plan = plan
+        self._completedDays = State(initialValue: plan.completedDays)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // Check if this is a monthly plan (has "weeks" key) or weekly plan (has "workouts" key)
-            if let weeks = planData["weeks"] as? [String: Any] {
-                // Monthly plan - display by weeks
-                MonthlyWorkoutsSection(weeks: weeks)
-            } else if let workouts = planData["workouts"] as? [String: Any] {
-                // Weekly plan - display by days
-                WorkoutsSection(workouts: workouts, planCreatedAt: planCreatedAt)
+            // Weekly plan - display by days
+            if let workouts = planData["workouts"] as? [String: Any] {
+                WorkoutsSection(
+                    workouts: workouts, 
+                    planCreatedAt: planCreatedAt,
+                    plan: plan,
+                    completedDays: $completedDays,
+                    onDayToggle: { day in
+                        let dayKey = day.lowercased()
+                        if completedDays.contains(dayKey) {
+                            completedDays.remove(dayKey)
+                        } else {
+                            completedDays.insert(dayKey)
+                        }
+                    }
+                )
             }
             
             // Nutrition Section
@@ -599,6 +622,9 @@ struct PlanContentView: View {
 struct WorkoutsSection: View {
     let workouts: [String: Any]
     let planCreatedAt: String
+    let plan: TrainingPlan
+    @Binding var completedDays: Set<String>
+    let onDayToggle: (String) -> Void
     
     // Function to get days in correct order starting from the day the plan was created
     private func sortedDays() -> [String] {
@@ -651,7 +677,14 @@ struct WorkoutsSection: View {
             VStack(spacing: 8) {
                 ForEach(sortedDays(), id: \.self) { day in
                     if let dayWorkout = workouts[day] as? [String: Any] {
-                        DayWorkoutCard(day: day, workout: dayWorkout)
+                        DayWorkoutCard(
+                            day: day, 
+                            workout: dayWorkout,
+                            isCompleted: completedDays.contains(day.lowercased()),
+                            onToggleCompletion: {
+                                onDayToggle(day)
+                            }
+                        )
                     } else if let restDay = workouts[day] as? String {
                         // Handle rest day as string
                         RestDayCard(day: day, description: restDay)
@@ -840,6 +873,8 @@ struct MonthlyRestDayCard: View {
 struct DayWorkoutCard: View {
     let day: String
     let workout: [String: Any]
+    let isCompleted: Bool
+    let onToggleCompletion: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -849,13 +884,20 @@ struct DayWorkoutCard: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
                 Spacer()
+                
+                // Completion indicator
+                if isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.green)
+                }
             }
             
             // Show workout type
             if let workoutType = workout["workout_type"] as? String {
                 Text(workoutType)
                     .font(.subheadline)
-                    .foregroundColor(.green)
+                    .foregroundColor(isCompleted ? .gray : .green)
             }
             
             // Show exercises
@@ -865,18 +907,33 @@ struct DayWorkoutCard: View {
                         HStack(alignment: .top) {
                             Image(systemName: "circle.fill")
                                 .font(.system(size: 6))
-                                .foregroundColor(.gray)
+                                .foregroundColor(isCompleted ? .gray.opacity(0.5) : .gray)
                             Text(exercise)
                                 .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .foregroundColor(isCompleted ? .gray.opacity(0.7) : .gray)
                         }
                     }
                 }
             }
         }
         .padding()
-        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .background(isCompleted ? Color.green.opacity(0.1) : Color(red: 0.1, green: 0.1, blue: 0.15))
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isCompleted ? Color.green.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    if value.translation.width < -50 { // Swipe left
+                        onToggleCompletion()
+                    }
+                }
+        )
+        .onTapGesture {
+            onToggleCompletion()
+        }
     }
 }
 
