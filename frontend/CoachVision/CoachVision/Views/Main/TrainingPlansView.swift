@@ -4,6 +4,8 @@ struct TrainingPlansView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var showingCreatePlan = false
     @State private var plansCount = 0
+    @State private var selectedPlan: TrainingPlan?
+    @State private var showingPlanDetail = false
     
     var body: some View {
         NavigationView {
@@ -66,24 +68,24 @@ struct TrainingPlansView: View {
                                 
                                 Spacer()
                                 
-                                                                                        // Debug info
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("(\(plansCount) plans)")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                Text("Loading: \(authManager.trainingPlanManager.isLoading ? "Yes" : "No")")
-                                    .font(.caption2)
-                                    .foregroundColor(.gray)
+                                // Debug info
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("(\(plansCount) plans)")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                    Text("Loading: \(authManager.trainingPlanManager.isLoading ? "Yes" : "No")")
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
+                                }
+                                
+                                if authManager.trainingPlanManager.isLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .scaleEffect(0.8)
+                                }
                             }
                             
-                            if authManager.trainingPlanManager.isLoading {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    .scaleEffect(0.8)
-                            }
-                        }
-                        
-                        if plansCount == 0 && !authManager.trainingPlanManager.isLoading {
+                            if plansCount == 0 && !authManager.trainingPlanManager.isLoading {
                                 // Empty state
                                 VStack(spacing: 16) {
                                     Image(systemName: "dumbbell")
@@ -114,6 +116,12 @@ struct TrainingPlansView: View {
                                             isActive: plan.isActive,
                                             date: plan.formattedDate
                                         )
+                                        .onTapGesture {
+                                            print("Plan tapped: \(plan.title)")
+                                            print("Plan ID: \(plan.id)")
+                                            selectedPlan = plan
+                                            print("selectedPlan set to plan")
+                                        }
                                     }
                                 }
                             }
@@ -128,6 +136,9 @@ struct TrainingPlansView: View {
         }
         .sheet(isPresented: $showingCreatePlan) {
             CreatePlanView()
+        }
+        .sheet(item: $selectedPlan) { plan in
+            PlanDetailView(plan: plan)
         }
         .task {
             // Fetch plans when view appears
@@ -160,63 +171,59 @@ struct PlanCard: View {
     let date: String
     
     var body: some View {
-        Button(action: {
-            // TODO: Navigate to plan details
-        }) {
-            VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    
+                    Text(date)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                if isActive {
+                    Text("ACTIVE")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.green.opacity(0.2))
+                        .cornerRadius(8)
+                }
+            }
+            
+            // Progress bar
+            VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(title)
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                        
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                        
-                        Text(date)
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
+                    Text("Progress")
+                        .font(.caption)
+                        .foregroundColor(.gray)
                     
                     Spacer()
                     
-                    if isActive {
-                        Text("ACTIVE")
-                            .font(.caption)
-                            .fontWeight(.bold)
-                            .foregroundColor(.green)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.green.opacity(0.2))
-                            .cornerRadius(8)
-                    }
+                    Text("\(Int(progress * 100))%")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
                 }
                 
-                // Progress bar
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Progress")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        
-                        Spacer()
-                        
-                        Text("\(Int(progress * 100))%")
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                    }
-                    
-                    ProgressView(value: progress)
-                        .progressViewStyle(LinearProgressViewStyle(tint: .green))
-                }
+                ProgressView(value: progress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
             }
-            .padding()
-            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-            .cornerRadius(16)
         }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(16)
     }
 }
 
@@ -358,6 +365,732 @@ struct CreatePlanView: View {
                 }
             }
         }
+    }
+}
+
+struct SimplePlanDetailView: View {
+    let plan: TrainingPlan
+    @Environment(\.dismiss) var dismiss
+    
+    init(plan: TrainingPlan) {
+        self.plan = plan
+        print("SimplePlanDetailView initialized with plan: \(plan.title)")
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                Text("Plan Detail")
+                    .font(.largeTitle)
+                    .foregroundColor(.white)
+                
+                Text("Title: \(plan.title)")
+                    .foregroundColor(.white)
+                
+                Text("ID: \(plan.id)")
+                    .foregroundColor(.white)
+                
+                Button("Close") {
+                    dismiss()
+                }
+                .foregroundColor(.white)
+                .padding()
+                .background(Color.blue)
+                .cornerRadius(8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.black)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                }
+            }
+        }
+        .onAppear {
+            print("SimplePlanDetailView appeared")
+        }
+    }
+}
+
+struct PlanDetailView: View {
+    let plan: TrainingPlan
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authManager: AuthenticationManager
+    @State private var showingDeleteAlert = false
+    @State private var isDeleting = false
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Header
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(plan.title)
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                            
+                            Text(plan.subtitle)
+                                .font(.headline)
+                                .foregroundColor(.gray)
+                            
+                            HStack {
+                                Text("Created: \(plan.formattedDate)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                                
+                                Spacer()
+                                
+                                Text("Starts Today")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.green)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.green.opacity(0.2))
+                                    .cornerRadius(8)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        
+                        // Plan Content
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Your Training Plan")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                            
+                            // Parse and display the JSON content
+                            if let planData = parsePlanContent(plan.content) {
+                                PlanContentView(planData: planData, planCreatedAt: plan.createdAt)
+                            } else {
+                                // Fallback: show raw content
+                                Text("Raw Plan Content:")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                
+                                Text(plan.content)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                    .cornerRadius(8)
+                                    .padding(.horizontal, 20)
+                            }
+                        }
+                        
+                        Spacer(minLength: 100)
+                    }
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(action: {
+                        showingDeleteAlert = true
+                    }) {
+                        Image(systemName: "trash")
+                            .foregroundColor(.red)
+                    }
+                    .disabled(isDeleting)
+                }
+            }
+            .alert("Delete Plan", isPresented: $showingDeleteAlert) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await deletePlan()
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to delete this plan? This action cannot be undone.")
+            }
+        }
+    }
+    
+    private func parsePlanContent(_ content: String) -> [String: Any]? {
+        // Remove markdown code blocks if present (robust)
+        var cleanContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanContent.hasPrefix("```json") {
+            cleanContent = String(cleanContent.dropFirst(7))
+        }
+        if cleanContent.hasPrefix("```") {
+            cleanContent = String(cleanContent.dropFirst(3))
+        }
+        if cleanContent.hasSuffix("```") {
+            cleanContent = String(cleanContent.dropLast(3))
+        }
+        cleanContent = cleanContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = cleanContent.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+    
+    private func deletePlan() async {
+        isDeleting = true
+        guard let token = authManager.authToken else { isDeleting = false; return }
+        guard let url = URL(string: "http://localhost:8000/plans/\(plan.id)") else { isDeleting = false; return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                // Remove plan from list
+                await MainActor.run {
+                    if let idx = authManager.trainingPlanManager.plans.firstIndex(where: { $0.id == plan.id }) {
+                        authManager.trainingPlanManager.plans.remove(at: idx)
+                    }
+                    dismiss()
+                }
+            }
+        } catch {
+            // Optionally show error
+        }
+        isDeleting = false
+    }
+}
+
+struct PlanContentView: View {
+    let planData: [String: Any]
+    let planCreatedAt: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Check if this is a monthly plan (has "weeks" key) or weekly plan (has "workouts" key)
+            if let weeks = planData["weeks"] as? [String: Any] {
+                // Monthly plan - display by weeks
+                MonthlyWorkoutsSection(weeks: weeks)
+            } else if let workouts = planData["workouts"] as? [String: Any] {
+                // Weekly plan - display by days
+                WorkoutsSection(workouts: workouts, planCreatedAt: planCreatedAt)
+            }
+            
+            // Nutrition Section
+            if let nutrition = planData["nutrition"] as? [String: Any] {
+                NutritionSection(nutrition: nutrition)
+            }
+            
+            // Recommendations Section
+            if let recommendations = planData["recommendations"] as? [String: Any] {
+                RecommendationsSection(recommendations: recommendations)
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+}
+
+struct WorkoutsSection: View {
+    let workouts: [String: Any]
+    let planCreatedAt: String
+    
+    // Function to get days in correct order starting from the day the plan was created
+    private func sortedDays() -> [String] {
+        let dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        let workoutDays = Array(workouts.keys)
+        
+        // Parse the creation date to get the day of week
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        
+        guard let creationDate = formatter.date(from: planCreatedAt) else {
+            print("Could not parse creation date: \(planCreatedAt)")
+            return workoutDays
+        }
+        
+        // Get the day of week when the plan was created
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: creationDate)
+        // Convert from Calendar weekday (1=Sunday, 2=Monday, etc.) to our day order (0=Monday, 1=Tuesday, etc.)
+        let creationDayIndex = (weekday + 5) % 7 // Adjust to make Monday=0, Tuesday=1, etc.
+        
+        print("Plan created on weekday: \(weekday), adjusted index: \(creationDayIndex)")
+        print("Creation day: \(dayOrder[creationDayIndex])")
+        
+        // Create the correct order starting from the creation day
+        var orderedDays: [String] = []
+        for i in 0..<7 {
+            let dayIndex = (creationDayIndex + i) % 7
+            let dayName = dayOrder[dayIndex]
+            print("Looking for day: \(dayName)")
+            
+            // Find the actual day name in workouts (preserving original casing)
+            if let actualDay = workoutDays.first(where: { $0.lowercased() == dayName }) {
+                orderedDays.append(actualDay)
+                print("Added day: \(actualDay)")
+            }
+        }
+        
+        print("Final ordered days: \(orderedDays)")
+        return orderedDays
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Weekly Workout Schedule")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            VStack(spacing: 8) {
+                ForEach(sortedDays(), id: \.self) { day in
+                    if let dayWorkout = workouts[day] as? [String: Any] {
+                        DayWorkoutCard(day: day, workout: dayWorkout)
+                    } else if let restDay = workouts[day] as? String {
+                        // Handle rest day as string
+                        RestDayCard(day: day, description: restDay)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct MonthlyWorkoutsSection: View {
+    let weeks: [String: Any]
+    
+    // Function to get weeks in correct order
+    private func sortedWeeks() -> [(String, [String: Any])] {
+        let weekKeys = Array(weeks.keys).sorted { week1, week2 in
+            // Extract week number and sort numerically
+            let week1Num = Int(week1.replacingOccurrences(of: "week_", with: "")) ?? 0
+            let week2Num = Int(week2.replacingOccurrences(of: "week_", with: "")) ?? 0
+            return week1Num < week2Num
+        }
+        
+        return weekKeys.compactMap { weekKey in
+            if let weekData = weeks[weekKey] as? [String: Any] {
+                return (weekKey, weekData)
+            }
+            return nil
+        }
+    }
+    
+    // Function to get days in a week in correct order
+    private func sortedDaysInWeek(_ weekData: [String: Any]) -> [(String, Any)] {
+        let dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        let weekDays = Array(weekData.keys)
+        
+        var orderedDays: [(String, Any)] = []
+        
+        // Sort days according to the standard week order
+        for dayName in dayOrder {
+            if let actualDay = weekDays.first(where: { $0.lowercased().contains(dayName) }) {
+                if let dayData = weekData[actualDay] {
+                    orderedDays.append((actualDay, dayData))
+                }
+            }
+        }
+        
+        return orderedDays
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Monthly Training Plan")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            VStack(spacing: 16) {
+                ForEach(sortedWeeks(), id: \.0) { weekKey, weekData in
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Week header
+                        Text(weekKey.replacingOccurrences(of: "_", with: " ").capitalized)
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.green)
+                            .padding(.horizontal, 20)
+                        
+                        // Days in this week
+                        VStack(spacing: 8) {
+                            ForEach(sortedDaysInWeek(weekData), id: \.0) { dayKey, dayData in
+                                if let dayWorkout = dayData as? [String: Any] {
+                                    MonthlyDayWorkoutCard(day: dayKey, workout: dayWorkout)
+                                } else if let restDay = dayData as? String {
+                                    MonthlyRestDayCard(day: dayKey, description: restDay)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct MonthlyDayWorkoutCard: View {
+    let day: String
+    let workout: [String: Any]
+    
+    // Extract day name and date from the key (e.g., "monday_june_01" -> "Monday, June 01")
+    private func formatDayDisplay() -> String {
+        let components = day.split(separator: "_")
+        if components.count >= 3 {
+            let dayName = String(components[0]).capitalized
+            let month = String(components[1]).capitalized
+            let date = String(components[2])
+            return "\(dayName), \(month) \(date)"
+        }
+        return day.capitalized
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(formatDayDisplay())
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            
+            // Show workout type
+            if let workoutType = workout["workout_type"] as? String {
+                Text(workoutType)
+                    .font(.subheadline)
+                    .foregroundColor(.green)
+            }
+            
+            // Show exercises
+            if let exercises = workout["exercises"] as? [String] {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(exercises, id: \.self) { exercise in
+                        HStack(alignment: .top) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 6))
+                                .foregroundColor(.gray)
+                            Text(exercise)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(12)
+        .padding(.horizontal, 20)
+    }
+}
+
+struct MonthlyRestDayCard: View {
+    let day: String
+    let description: String
+    
+    // Extract day name and date from the key (e.g., "monday_june_01" -> "Monday, June 01")
+    private func formatDayDisplay() -> String {
+        let components = day.split(separator: "_")
+        if components.count >= 3 {
+            let dayName = String(components[0]).capitalized
+            let month = String(components[1]).capitalized
+            let date = String(components[2])
+            return "\(dayName), \(month) \(date)"
+        }
+        return day.capitalized
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(formatDayDisplay())
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                Spacer()
+                
+                Text("Rest Day")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.orange)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.orange.opacity(0.2))
+                    .cornerRadius(8)
+            }
+            
+            Text(description)
+                .font(.subheadline)
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(12)
+        .padding(.horizontal, 20)
+    }
+}
+
+struct DayWorkoutCard: View {
+    let day: String
+    let workout: [String: Any]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(day.capitalized)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            
+            // Show workout type
+            if let workoutType = workout["workout_type"] as? String {
+                Text(workoutType)
+                    .font(.subheadline)
+                    .foregroundColor(.green)
+            }
+            
+            // Show exercises
+            if let exercises = workout["exercises"] as? [String] {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(exercises, id: \.self) { exercise in
+                        HStack(alignment: .top) {
+                            Image(systemName: "circle.fill")
+                                .font(.system(size: 6))
+                                .foregroundColor(.gray)
+                            Text(exercise)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(12)
+    }
+}
+
+struct NutritionSection: View {
+    let nutrition: [String: Any]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Nutrition Plan")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            VStack(spacing: 8) {
+                // Calorie target
+                if let calorieTarget = nutrition["calorie_target"] as? String {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Daily Calorie Target")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                        Text(calorieTarget)
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+                    .padding()
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(12)
+                }
+                
+                // Foods to eat
+                if let foodsToEat = nutrition["foods_to_eat"] as? [String] {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("What to Eat")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                        ForEach(foodsToEat, id: \.self) { food in
+                            HStack {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 6))
+                                    .foregroundColor(.gray)
+                                Text(food)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(12)
+                }
+                
+                // Foods to avoid
+                if let foodsToAvoid = nutrition["foods_to_avoid"] as? [String] {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("What to Avoid")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                        ForEach(foodsToAvoid, id: \.self) { food in
+                            HStack {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 6))
+                                    .foregroundColor(.gray)
+                                Text(food)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(12)
+                }
+            }
+        }
+    }
+}
+
+struct NutritionCard: View {
+    let title: String
+    let content: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            Text(content)
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(12)
+    }
+}
+
+struct RecommendationsSection: View {
+    let recommendations: [String: Any]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recommendations")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            
+            VStack(spacing: 8) {
+                // Rest days
+                if let restDays = recommendations["rest_days"] as? [String: String] {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Rest Days")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                        ForEach(Array(restDays.keys), id: \.self) { day in
+                            HStack {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 6))
+                                    .foregroundColor(.gray)
+                                VStack(alignment: .leading, spacing: 0) {
+                                    Text(day.capitalized)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.gray)
+                                    if let description = restDays[day] {
+                                        Text(description)
+                                            .font(.caption2)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(12)
+                }
+                
+                // Recovery tips
+                if let recoveryTips = recommendations["recovery_tips"] as? [String] {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Recovery Tips")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                        ForEach(recoveryTips, id: \.self) { tip in
+                            HStack {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 6))
+                                    .foregroundColor(.gray)
+                                Text(tip)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(12)
+                }
+                
+                // Progress tracking tips
+                if let progressTips = recommendations["progress_tracking_tips"] as? [String] {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Progress Tracking")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                        ForEach(progressTips, id: \.self) { tip in
+                            HStack {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 6))
+                                    .foregroundColor(.gray)
+                                Text(tip)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(12)
+                }
+            }
+        }
+    }
+}
+
+struct RestDayCard: View {
+    let day: String
+    let description: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(day.capitalized)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                Spacer()
+            }
+            
+            Text(description)
+                .font(.subheadline)
+                .foregroundColor(.gray)
+        }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(12)
     }
 }
 

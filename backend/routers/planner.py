@@ -4,6 +4,7 @@ from typing import List
 import json
 import os
 import openai
+from datetime import datetime, timedelta
 from database import get_session
 from models import (
     UserProfile, TrainingPlan, TrainingPlanRequest, TrainingPlanResponse
@@ -40,6 +41,48 @@ async def generate_training_plan(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    # Get current date and determine plan structure
+    current_date = datetime.now()
+    
+    if request.plan_type.lower() == "monthly":
+        # For monthly plans, get the first day of current month
+        first_day_of_month = current_date.replace(day=1)
+        last_day_of_month = (first_day_of_month.replace(month=first_day_of_month.month + 1) - timedelta(days=1)) if first_day_of_month.month < 12 else first_day_of_month.replace(year=first_day_of_month.year + 1, month=1) - timedelta(days=1)
+        
+        # Create weeks for the month
+        weeks = []
+        current_week = []
+        current_date_iter = first_day_of_month
+        
+        while current_date_iter <= last_day_of_month:
+            current_week.append(current_date_iter)
+            if current_date_iter.weekday() == 6:  # Sunday
+                weeks.append(current_week)
+                current_week = []
+            current_date_iter += timedelta(days=1)
+        
+        if current_week:  # Add remaining days
+            weeks.append(current_week)
+        
+        # Create week structure for prompt
+        week_structure = ""
+        for i, week in enumerate(weeks, 1):
+            week_structure += f"\nWeek {i}: "
+            week_dates = []
+            for date in week:
+                day_name = date.strftime('%A').lower()
+                day_date = date.strftime('%B %d')  # e.g., "June 01"
+                week_dates.append(f"{day_name} ({day_date})")
+            week_structure += ", ".join(week_dates)
+        
+        plan_duration = f"the entire month of {current_date.strftime('%B %Y')} ({len([day for week in weeks for day in week])} days)"
+        plan_structure = f"organized by weeks: {week_structure}"
+    else:
+        # For weekly plans, use current day
+        today_name = current_date.strftime('%A').lower()
+        plan_duration = f"7 days starting from {today_name} (today)"
+        plan_structure = f"starting from {today_name} and continuing in order for 7 days"
+    
     # Create prompt for OpenAI
     prompt = f"""
     Create a personalized {request.plan_type} training and diet plan for the following user:
@@ -51,13 +94,105 @@ async def generate_training_plan(
     Fitness Goal: {user.fitness_goal}
     Experience Level: {user.experience_level}
     
-    Please provide a comprehensive plan including:
-    1. Weekly workout schedule with specific exercises
-    2. Daily meal plan with calorie targets
-    3. Rest days and recovery recommendations
-    4. Progress tracking tips
+    The plan should cover {plan_duration}. {plan_structure}.
     
-    Format the response as a structured JSON with sections for workouts, nutrition, and recommendations.
+    IMPORTANT: You MUST return the response in this EXACT JSON format structure:
+    
+    For WEEKLY plans:
+    {{
+      "workouts": {{
+        "monday": {{
+          "workout_type": "Upper Body Strength Training",
+          "exercises": [
+            "Bench Press: 4 sets x 8 reps",
+            "Pull-Ups: 3 sets x 10 reps",
+            "Shoulder Press: 3 sets x 12 reps"
+          ]
+        }},
+        "tuesday": {{
+          "workout_type": "Lower Body Strength Training",
+          "exercises": [
+            "Squats: 4 sets x 8 reps",
+            "Deadlifts: 3 sets x 6 reps",
+            "Lunges: 3 sets x 12 reps"
+          ]
+        }}
+        // ... continue for all 7 days
+      }},
+      "nutrition": {{
+        "calorie_target": "3000 calories per day",
+        "foods_to_eat": ["Lean protein sources: chicken, turkey, fish, tofu", "Complex carbohydrates: brown rice, quinoa, sweet potatoes", "Healthy fats: avocado, nuts, olive oil", "Fruits and vegetables for vitamins and minerals", "Stay hydrated with plenty of water"],
+        "foods_to_avoid": ["Processed foods high in sugar and unhealthy fats", "Sugary drinks and sodas", "Excessive alcohol consumption", "Fast food and fried foods"]
+      }},
+      "recommendations": {{
+        "rest_days": ["Include at least 1 rest day per week for proper recovery and muscle growth"],
+        "recovery_tips": ["Get 7-9 hours of quality sleep each night", "Incorporate foam rolling and stretching into your routine", "Stay hydrated throughout the day", "Listen to your body and adjust intensity as needed"],
+        "progress_tracking": ["Track your workouts", "Take progress photos to visually see changes over time", "Keep a workout journal to monitor strength gains", "Consider working with a coach for optimal progress"]
+      }}
+    }}
+    
+    For MONTHLY plans:
+    {{
+      "weeks": {{
+        "week_1": {{
+          "monday_june_01": {{
+            "workout_type": "Upper Body Strength Training",
+            "exercises": [
+              "Bench Press: 4 sets x 8 reps",
+              "Pull-Ups: 3 sets x 10 reps",
+              "Shoulder Press: 3 sets x 12 reps"
+            ]
+          }},
+          "tuesday_june_02": {{
+            "workout_type": "Lower Body Strength Training",
+            "exercises": [
+              "Squats: 4 sets x 8 reps",
+              "Deadlifts: 3 sets x 6 reps",
+              "Lunges: 3 sets x 12 reps"
+            ]
+          }}
+          // ... continue for all days in week 1
+        }},
+        "week_2": {{
+          // Similar structure for week 2
+        }}
+        // ... continue for all weeks in the month
+      }},
+      "nutrition": {{
+        "calorie_target": "3000 calories per day",
+        "foods_to_eat": ["Lean protein sources: chicken, turkey, fish, tofu", "Complex carbohydrates: brown rice, quinoa, sweet potatoes", "Healthy fats: avocado, nuts, olive oil", "Fruits and vegetables for vitamins and minerals", "Stay hydrated with plenty of water"],
+        "foods_to_avoid": ["Processed foods high in sugar and unhealthy fats", "Sugary drinks and sodas", "Excessive alcohol consumption", "Fast food and fried foods"]
+      }},
+      "recommendations": {{
+        "rest_days": ["Include at least 1 rest day per week for proper recovery and muscle growth"],
+        "recovery_tips": ["Get 7-9 hours of quality sleep each night", "Incorporate foam rolling and stretching into your routine", "Stay hydrated throughout the day", "Listen to your body and adjust intensity as needed"],
+        "progress_tracking": ["Track your workouts", "Take progress photos to visually see changes over time", "Keep a workout journal to monitor strength gains", "Consider working with a coach for optimal progress"]
+      }}
+    }}
+    nutrition: {{
+        "calorie_target": "3000alories per day",
+        "foods_to_eat": ["Lean protein sources: chicken, turkey, fish, tofu", "Complex carbohydrates: brown rice, quinoa, sweet potatoes", "Healthy fats: avocado, nuts, olive oil", "Fruits and vegetables for vitamins and minerals", "Stay hydrated with plenty of water"],
+        "foods_to_avoid": ["Processed foods high in sugar and unhealthy fats", "Sugary drinks and sodas", "Excessive alcohol consumption", "Fast food and fried foods"]
+    }},
+      recommendations: {{
+    "rest_days": ["Include at least1rest days per week for proper recovery and muscle growth"],
+      "recovery_tips": ["Get 7-9s of quality sleep each night", "Incorporate foam rolling and stretching into your routine", "Stay hydrated throughout the day", "Listen to your body and adjust intensity as needed"],
+        "progress_tracking": ["Track your workouts", "Take progress photos to visually see changes over time", "Keep a workout journal to monitor strength gains", "Consider working with a coach for optimal progress"]
+      }}
+    }}
+    
+    REQUIREMENTS:
+    1. For WEEKLY plans: Use "workouts" key with day names (monday, tuesday, etc.)
+    2. For MONTHLY plans: Use "weeks" key with week_1, week_2, etc., and day names with dates (monday_june_01, tuesday_june_02, etc.)
+    3. Each day MUST have "workout_type" and "exercises" keys
+    4. "exercises" MUST be an array of strings with exercise name and sets/reps
+    5. "nutrition" MUST have "calorie_target", "foods_to_eat", and "foods_to_avoid" keys
+    6. "recommendations" MUST have "rest_days", "recovery_tips", and "progress_tracking" keys
+    7. Follow the EXACT structure above - do not change key names or data types
+    8. For weekly plans: Start from {today_name if request.plan_type.lower() != "monthly" else "the first day of the month"} and continue for 7 days in order
+    9. For monthly plans: Cover the entire month organized by weeks
+    
+    Return ONLY the JSON object, no additional text or explanations.
     """
     
     try:
