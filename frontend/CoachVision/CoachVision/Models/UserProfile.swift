@@ -82,7 +82,7 @@ struct TrainingPlan: Codable, Identifiable {
         case content
         case createdAt = "created_at"
         case isActive = "is_active"
-        case completedDays
+        case completedDays = "completed_days"
     }
     
     init(from decoder: Decoder) throws {
@@ -93,7 +93,33 @@ struct TrainingPlan: Codable, Identifiable {
         content = try container.decode(String.self, forKey: .content)
         createdAt = try container.decode(String.self, forKey: .createdAt)
         isActive = try container.decode(Bool.self, forKey: .isActive)
-        completedDays = try container.decodeIfPresent(Set<String>.self, forKey: .completedDays) ?? []
+        
+        // Decode completed_days from JSON string
+        if let completedDaysString = try container.decodeIfPresent(String.self, forKey: .completedDays) {
+            print("Raw completed_days string: '\(completedDaysString)'")
+            if let data = completedDaysString.data(using: .utf8),
+               let daysArray = try? JSONSerialization.jsonObject(with: data) as? [String] {
+                completedDays = Set(daysArray)
+                print("Successfully decoded completed days: \(completedDays)")
+            } else {
+                print("Failed to decode completed days from: '\(completedDaysString)'")
+                completedDays = []
+            }
+        } else {
+            print("No completed_days field found in response")
+            completedDays = []
+        }
+    }
+    
+    // Custom initializer for creating plans with updated completed days
+    init(id: Int, userId: Int, planType: String, content: String, createdAt: String, isActive: Bool, completedDays: Set<String>) {
+        self.id = id
+        self.userId = userId
+        self.planType = planType
+        self.content = content
+        self.createdAt = createdAt
+        self.isActive = isActive
+        self.completedDays = completedDays
     }
     
     // Computed properties for display
@@ -112,7 +138,9 @@ struct TrainingPlan: Codable, Identifiable {
     var progress: Double {
         // Calculate progress based on completed days
         let totalDays = 7.0 // Weekly plans have 7 days
-        return Double(completedDays.count) / totalDays
+        let progress = Double(completedDays.count) / totalDays
+        print("Progress calculation for plan \(id): \(completedDays.count) completed days out of \(totalDays) = \(progress * 100)%")
+        return progress
     }
     
     var formattedDate: String {

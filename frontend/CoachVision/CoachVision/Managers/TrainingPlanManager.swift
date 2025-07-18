@@ -36,6 +36,42 @@ class TrainingPlanManager: ObservableObject {
         )
     }
     
+    func updateCompletedDays(planId: Int, completedDays: Set<String>) async {
+        print("updateCompletedDays called for plan \(planId) with days: \(completedDays)")
+        
+        // Update local plan immediately for UI responsiveness
+        if let index = plans.firstIndex(where: { $0.id == planId }) {
+            print("Found plan at index \(index)")
+            await MainActor.run {
+                // Create a new plan with updated completed days
+                let originalPlan = plans[index]
+                print("Original plan progress: \(originalPlan.progress * 100)%")
+                let updatedPlan = TrainingPlan(
+                    id: originalPlan.id,
+                    userId: originalPlan.userId,
+                    planType: originalPlan.planType,
+                    content: originalPlan.content,
+                    createdAt: originalPlan.createdAt,
+                    isActive: originalPlan.isActive,
+                    completedDays: completedDays
+                )
+                plans[index] = updatedPlan
+                print("Updated plan progress: \(updatedPlan.progress * 100)%")
+                print("Plans array now has \(plans.count) plans")
+            }
+        } else {
+            print("Plan not found in plans array")
+        }
+        
+        await performRequest(
+            endpoint: "/plans/\(planId)/completed-days",
+            method: "PUT",
+            body: [
+                "completed_days": Array(completedDays)
+            ]
+        )
+    }
+    
     private func performRequest(endpoint: String, method: String, body: [String: Any]) async {
         guard let token = authToken else { 
             print("No auth token available for training plans")
@@ -82,8 +118,9 @@ class TrainingPlanManager: ObservableObject {
                             if let plansResponse = try? JSONDecoder().decode([TrainingPlan].self, from: data) {
                                 self.plans = plansResponse
                                 print("Successfully fetched \(plansResponse.count) plans")
-                                print("First plan: \(plansResponse.first?.title ?? "nil")")
-                                print("First plan content: \(plansResponse.first?.content.prefix(100) ?? "nil")")
+                                for plan in plansResponse {
+                                    print("Plan \(plan.id): \(plan.completedDays.count) completed days - \(plan.completedDays)")
+                                }
                             } else {
                                 print("Failed to decode plans response")
                                 print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
@@ -97,6 +134,10 @@ class TrainingPlanManager: ObservableObject {
                                 print("Failed to decode plan creation response")
                                 print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
                             }
+                        } else if endpoint.contains("/completed-days") {
+                            // Handle update completed days response
+                            print("Successfully updated completed days")
+                            // No need to refresh since we update locally
                         }
                     } else {
                         print("Training plans request failed with status: \(httpResponse.statusCode)")

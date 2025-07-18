@@ -106,23 +106,22 @@ struct TrainingPlansView: View {
                                 .background(Color(red: 0.1, green: 0.1, blue: 0.15))
                                 .cornerRadius(16)
                             } else {
-                                // Plans list
+                                                                // Plans list
                                 VStack(spacing: 12) {
                                     ForEach(authManager.trainingPlanManager.plans) { plan in
-                                        PlanCard(
-                                            title: plan.title,
-                                            subtitle: plan.subtitle,
-                                            progress: plan.progress,
-                                            isActive: plan.isActive,
-                                            date: plan.formattedDate
-                                        )
-                                        .onTapGesture {
-                                            print("Plan tapped: \(plan.title)")
-                                            print("Plan ID: \(plan.id)")
-                                            selectedPlan = plan
-                                            print("selectedPlan set to plan")
-                                        }
+                                        PlanCard(planId: plan.id)
+                                            .environmentObject(authManager)
+                                            .onTapGesture {
+                                                print("Plan tapped: \(plan.title)")
+                                                print("Plan ID: \(plan.id)")
+                                                selectedPlan = plan
+                                                print("selectedPlan set to plan")
+                                            }
                                     }
+                                }
+                                .onAppear {
+                                    print("Plans list appeared with \(authManager.trainingPlanManager.plans.count) plans")
+                                    print("Plan IDs in list: \(authManager.trainingPlanManager.plans.map { $0.id })")
                                 }
                             }
                         }
@@ -159,71 +158,142 @@ struct TrainingPlansView: View {
         .onReceive(authManager.trainingPlanManager.$plans) { plans in
             plansCount = plans.count
             print("onReceive: Plans count updated to \(plans.count)")
+            print("onReceive: Plan IDs: \(plans.map { $0.id })")
         }
     }
 }
 
 struct PlanCard: View {
-    let title: String
-    let subtitle: String
-    let progress: Double
-    let isActive: Bool
-    let date: String
+    let planId: Int
+    @EnvironmentObject var authManager: AuthenticationManager
+    @State private var currentPlan: TrainingPlan?
+    
+    init(planId: Int) {
+        self.planId = planId
+        print("PlanCard init: Created for plan \(planId)")
+    }
+    
+    private func updateCurrentPlan() {
+        print("PlanCard updateCurrentPlan: Looking for plan \(planId)")
+        print("Available plans: \(authManager.trainingPlanManager.plans.map { $0.id })")
+        currentPlan = authManager.trainingPlanManager.plans.first { $0.id == planId }
+        print("Found plan: \(currentPlan?.title ?? "nil")")
+    }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
+        Group {
+            if let plan = currentPlan {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(plan.title)
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                            
+                            Text(plan.subtitle)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                            
+                            Text(plan.formattedDate)
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        if plan.isActive {
+                            Text("ACTIVE")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.2))
+                                .cornerRadius(8)
+                        }
+                    }
                     
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                    
-                    Text(date)
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                    // Progress bar
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Progress")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            
+                            Spacer()
+                            
+                            Text("\(Int(plan.progress * 100))%")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .onAppear {
+                                    print("PlanCard showing progress: \(plan.progress * 100)% for plan \(plan.id)")
+                                }
+                        }
+                        
+                        ProgressView(value: plan.progress)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                    }
                 }
-                
-                Spacer()
-                
-                if isActive {
-                    Text("ACTIVE")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.green)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.green.opacity(0.2))
-                        .cornerRadius(8)
-                }
-            }
-            
-            // Progress bar
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Progress")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                .padding()
+                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                .cornerRadius(16)
+            } else {
+                // Fallback if plan not found
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Loading...")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                            
+                            Text("Plan ID: \(planId)")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(0.8)
+                    }
                     
-                    Spacer()
-                    
-                    Text("\(Int(progress * 100))%")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
+                    // Progress bar placeholder
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text("Progress")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            
+                            Spacer()
+                            
+                            Text("0%")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                        }
+                        
+                        ProgressView(value: 0)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                    }
                 }
-                
-                ProgressView(value: progress)
-                    .progressViewStyle(LinearProgressViewStyle(tint: .green))
+                .padding()
+                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                .cornerRadius(16)
             }
         }
-        .padding()
-        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-        .cornerRadius(16)
+        .onReceive(authManager.trainingPlanManager.$plans) { plans in
+            print("PlanCard onReceive: Plans updated, looking for plan \(planId)")
+            updateCurrentPlan()
+            print("PlanCard: Updated currentPlan for plan \(planId), progress: \(currentPlan?.progress ?? 0)")
+        }
+        .onAppear {
+            print("PlanCard onAppear: Looking for plan \(planId)")
+            updateCurrentPlan()
+        }
     }
 }
 
@@ -477,6 +547,7 @@ struct PlanDetailView: View {
                             // Parse and display the JSON content
                             if let planData = parsePlanContent(plan.content) {
                                 PlanContentView(planData: planData, planCreatedAt: plan.createdAt, plan: plan)
+                                    .environmentObject(authManager)
                             } else {
                                 // Fallback: show raw content
                                 Text("Raw Plan Content:")
@@ -575,34 +646,57 @@ struct PlanDetailView: View {
 struct PlanContentView: View {
     let planData: [String: Any]
     let planCreatedAt: String
-    let plan: TrainingPlan
+    let planId: Int
     @State private var completedDays: Set<String>
+    @EnvironmentObject var authManager: AuthenticationManager
     
     init(planData: [String: Any], planCreatedAt: String, plan: TrainingPlan) {
         self.planData = planData
         self.planCreatedAt = planCreatedAt
-        self.plan = plan
+        self.planId = plan.id
         self._completedDays = State(initialValue: plan.completedDays)
+    }
+    
+    private var currentPlan: TrainingPlan? {
+        authManager.trainingPlanManager.plans.first { $0.id == planId }
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Weekly plan - display by days
-            if let workouts = planData["workouts"] as? [String: Any] {
+            if let workouts = planData["workouts"] as? [String: Any],
+               let currentPlan = currentPlan {
                 WorkoutsSection(
                     workouts: workouts, 
                     planCreatedAt: planCreatedAt,
-                    plan: plan,
+                    plan: currentPlan,
                     completedDays: $completedDays,
                     onDayToggle: { day in
                         let dayKey = day.lowercased()
+                        print("Toggling day: \(day) -> \(dayKey)")
+                        print("Before toggle - completedDays: \(completedDays)")
+                        
                         if completedDays.contains(dayKey) {
                             completedDays.remove(dayKey)
+                            print("Removed \(dayKey) from completedDays")
                         } else {
                             completedDays.insert(dayKey)
+                            print("Added \(dayKey) to completedDays")
+                        }
+                        
+                        print("After toggle - completedDays: \(completedDays)")
+                        print("Progress should be: \(Double(completedDays.count) / 7.0 * 100)%")
+                        
+                        // Save to backend
+                        Task {
+                            await authManager.trainingPlanManager.updateCompletedDays(
+                                planId: currentPlan.id,
+                                completedDays: completedDays
+                            )
                         }
                     }
                 )
+                .environmentObject(authManager)
             }
             
             // Nutrition Section
@@ -616,6 +710,13 @@ struct PlanContentView: View {
             }
         }
         .padding(.horizontal, 20)
+        .onReceive(authManager.trainingPlanManager.$plans) { plans in
+            // Update completedDays when the plan is updated
+            if let updatedPlan = plans.first(where: { $0.id == planId }) {
+                completedDays = updatedPlan.completedDays
+                print("PlanContentView: Updated completedDays to \(completedDays)")
+            }
+        }
     }
 }
 
@@ -625,6 +726,7 @@ struct WorkoutsSection: View {
     let plan: TrainingPlan
     @Binding var completedDays: Set<String>
     let onDayToggle: (String) -> Void
+    @EnvironmentObject var authManager: AuthenticationManager
     
     // Function to get days in correct order starting from the day the plan was created
     private func sortedDays() -> [String] {
@@ -932,6 +1034,7 @@ struct DayWorkoutCard: View {
                 }
         )
         .onTapGesture {
+            print("DayWorkoutCard tapped for day: \(day)")
             onToggleCompletion()
         }
     }

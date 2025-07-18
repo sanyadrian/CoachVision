@@ -7,7 +7,7 @@ import openai
 from datetime import datetime, timedelta
 from database import get_session
 from models import (
-    UserProfile, TrainingPlan, TrainingPlanRequest, TrainingPlanResponse
+    UserProfile, TrainingPlan, TrainingPlanRequest, TrainingPlanResponse, TrainingPlanUpdateRequest
 )
 from routers.auth import verify_token
 
@@ -188,4 +188,26 @@ async def delete_training_plan(
     
     session.delete(plan)
     session.commit()
-    return {"message": "Training plan deleted successfully"} 
+    return {"message": "Training plan deleted successfully"}
+
+@router.put("/{plan_id}/completed-days")
+async def update_completed_days(
+    plan_id: int,
+    request: TrainingPlanUpdateRequest,
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
+):
+    """Update completed days for a training plan"""
+    plan = session.get(TrainingPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Training plan not found")
+    
+    if plan.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this plan")
+    
+    # Convert list to JSON string
+    plan.completed_days = json.dumps(request.completed_days)
+    session.commit()
+    session.refresh(plan)
+    
+    return {"message": "Completed days updated successfully", "completed_days": request.completed_days} 

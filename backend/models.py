@@ -35,6 +35,7 @@ class TrainingPlan(SQLModel, table=True):
     content: str  # JSON string or text content
     created_at: datetime = Field(default_factory=datetime.utcnow)
     is_active: bool = Field(default=True)
+    completed_days: Optional[str] = Field(default="[]")  # JSON array of completed days
 
 class VideoAnalysis(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -70,6 +71,9 @@ class TrainingPlanRequest(SQLModel):
     user_id: int
     plan_type: str = "weekly"
 
+class TrainingPlanUpdateRequest(SQLModel):
+    completed_days: list[str]
+
 class TrainingPlanResponse(SQLModel):
     id: int
     user_id: int
@@ -77,6 +81,7 @@ class TrainingPlanResponse(SQLModel):
     content: str
     created_at: datetime
     is_active: bool
+    completed_days: str
 
 class VideoAnalysisRequest(SQLModel):
     user_id: int
