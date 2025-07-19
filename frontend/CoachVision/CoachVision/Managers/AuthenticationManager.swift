@@ -7,7 +7,10 @@ class AuthenticationManager: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    private let baseURL = "http://localhost:8000"
+    // Use your computer's local IP address here
+    // You can find it by running 'ifconfig' in Terminal on your Mac
+    // Look for 'inet' followed by an IP like 192.168.1.xxx
+    private let baseURL = "http://192.168.4.27:8000"  // Your computer's local IP
     var authToken: String?
     
     // Training Plan Manager

@@ -5,7 +5,7 @@ class TrainingPlanManager: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    private let baseURL = "http://localhost:8000"
+    private let baseURL = "http://192.168.4.27:8000"  // Your computer's local IP
     private var authToken: String?
     
     init(authToken: String?) {

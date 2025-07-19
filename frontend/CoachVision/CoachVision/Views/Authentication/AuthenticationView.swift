@@ -38,16 +38,7 @@ struct AuthenticationView: View {
                     .padding(.top, 60)
                     .padding(.bottom, 40)
                     
-                    // Debug button to clear cache (temporary)
-                    Button("Clear Cache (Debug)") {
-                        UserDefaults.standard.removeObject(forKey: "authToken")
-                        authManager.authToken = nil
-                        authManager.isAuthenticated = false
-                        authManager.currentUser = nil
-                    }
-                    .foregroundColor(.red)
-                    .font(.caption)
-                    .padding(.bottom, 20)
+
                     
                     // Tab selector
                     HStack(spacing: 0) {

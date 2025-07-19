@@ -1,304 +1,318 @@
 import SwiftUI
+import AVFoundation
+import Photos
 
 struct VideoAnalysisView: View {
-    @EnvironmentObject var authManager: AuthenticationManager
+    @StateObject private var cameraManager = CameraManager()
+    @State private var showingImagePicker = false
     @State private var showingCamera = false
-    @State private var selectedExercise = "squat"
+    @State private var recordedVideoURL: URL?
+    @State private var isRecording = false
+    @State private var showingVideoPlayer = false
     
     var body: some View {
         NavigationView {
             ZStack {
-                // Background gradient
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.black,
-                        Color(red: 0.1, green: 0.1, blue: 0.15),
-                        Color(red: 0.05, green: 0.05, blue: 0.1)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                Color.black.ignoresSafeArea()
                 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Header
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Video Analysis")
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                            
-                            Text("Record and analyze your form")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
-                        
-                        // Exercise Selection
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Select Exercise")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                            
-                            LazyVGrid(columns: [
-                                GridItem(.flexible()),
-                                GridItem(.flexible())
-                            ], spacing: 12) {
-                                ExerciseCard(
-                                    title: "Squat",
-                                    icon: "figure.walk",
-                                    isSelected: selectedExercise == "squat"
-                                ) {
-                                    selectedExercise = "squat"
-                                }
-                                
-                                ExerciseCard(
-                                    title: "Deadlift",
-                                    icon: "figure.strengthtraining.traditional",
-                                    isSelected: selectedExercise == "deadlift"
-                                ) {
-                                    selectedExercise = "deadlift"
-                                }
-                                
-                                ExerciseCard(
-                                    title: "Push-up",
-                                    icon: "figure.mixed.cardio",
-                                    isSelected: selectedExercise == "pushup"
-                                ) {
-                                    selectedExercise = "pushup"
-                                }
-                                
-                                ExerciseCard(
-                                    title: "Pull-up",
-                                    icon: "figure.climbing",
-                                    isSelected: selectedExercise == "pullup"
-                                ) {
-                                    selectedExercise = "pullup"
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // Record Button
-                        Button(action: {
-                            showingCamera = true
-                        }) {
-                            HStack {
-                                Image(systemName: "video.fill")
-                                    .font(.title2)
-                                Text("Record Exercise")
-                                    .font(.headline)
-                                    .fontWeight(.semibold)
-                            }
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 60)
-                            .background(Color.white)
-                            .cornerRadius(30)
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        // Recent Analyses
-                        VStack(spacing: 16) {
-                            Text("Recent Analyses")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            VStack(spacing: 12) {
-                                ForEach(0..<3) { index in
-                                    AnalysisCard(
-                                        exercise: ["Squat", "Deadlift", "Push-up"][index],
-                                        date: "Today",
-                                        score: 85 - (index * 5),
-                                        feedback: "Good form overall, keep your back straight"
-                                    )
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        Spacer(minLength: 100)
-                    }
-                }
-            }
-            .navigationBarHidden(true)
-        }
-        .sheet(isPresented: $showingCamera) {
-            CameraView(exerciseType: selectedExercise)
-        }
-    }
-}
-
-struct ExerciseCard: View {
-    let title: String
-    let icon: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.title)
-                    .foregroundColor(isSelected ? .white : .gray)
-                
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white : .gray)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 80)
-            .background(isSelected ? Color(red: 0.2, green: 0.2, blue: 0.3) : Color(red: 0.1, green: 0.1, blue: 0.15))
-            .cornerRadius(16)
-        }
-    }
-}
-
-struct AnalysisCard: View {
-    let exercise: String
-    let date: String
-    let score: Int
-    let feedback: String
-    
-    var body: some View {
-        Button(action: {
-            // TODO: Navigate to analysis details
-        }) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(exercise)
-                            .font(.headline)
-                            .fontWeight(.semibold)
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Text("Video Analysis")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
                             .foregroundColor(.white)
                         
-                        Text(date)
-                            .font(.caption)
+                        Text("Record or upload your training videos")
+                            .font(.subheadline)
                             .foregroundColor(.gray)
                     }
+                    .padding(.top, 20)
                     
                     Spacer()
                     
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("\(score)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(scoreColor)
-                        
-                        Text("Score")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                }
-                
-                Text(feedback)
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-                    .lineLimit(2)
-            }
-            .padding()
-            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-            .cornerRadius(16)
-        }
-    }
-    
-    private var scoreColor: Color {
-        if score >= 80 { return .green }
-        if score >= 60 { return .orange }
-        return .red
-    }
-}
-
-struct CameraView: View {
-    let exerciseType: String
-    @Environment(\.dismiss) var dismiss
-    @State private var isRecording = false
-    
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                // Header
-                HStack {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Text("Record \(exerciseType.capitalized)")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Button("Done") {
-                        dismiss()
-                    }
-                    .foregroundColor(.white)
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                
-                Spacer()
-                
-                // Camera placeholder
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(red: 0.1, green: 0.1, blue: 0.15))
-                    .frame(height: 400)
-                    .overlay(
+                    // Camera Preview
+                    if let previewLayer = cameraManager.previewLayer {
+                        CameraPreviewView(previewLayer: previewLayer)
+                            .frame(height: 300)
+                            .cornerRadius(16)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            )
+                    } else {
+                        // Placeholder when camera not available
                         VStack(spacing: 16) {
-                            Image(systemName: "camera.fill")
+                            Image(systemName: "video.slash")
                                 .font(.system(size: 60))
                                 .foregroundColor(.gray)
                             
-                            Text("Camera View")
+                            Text("Camera Access Required")
                                 .font(.headline)
-                                .foregroundColor(.gray)
+                                .foregroundColor(.white)
                             
-                            Text("Tap to start recording")
+                            Text("Please grant camera permissions to record videos")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
                         }
-                    )
-                    .onTapGesture {
-                        isRecording.toggle()
+                        .frame(height: 300)
+                        .frame(maxWidth: .infinity)
+                        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                        .cornerRadius(16)
                     }
-                
-                Spacer()
-                
-                // Recording indicator
-                if isRecording {
-                    HStack {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 12, height: 12)
-                            .scaleEffect(isRecording ? 1.2 : 1.0)
-                            .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: isRecording)
+                    
+                    // Recording Controls
+                    HStack(spacing: 40) {
+                        // Record Button
+                        Button(action: {
+                            if isRecording {
+                                cameraManager.stopRecording()
+                                isRecording = false
+                            } else {
+                                cameraManager.startRecording()
+                                isRecording = true
+                            }
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(isRecording ? Color.red : Color.white)
+                                    .frame(width: 80, height: 80)
+                                
+                                if isRecording {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color.white)
+                                        .frame(width: 32, height: 32)
+                                } else {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 60, height: 60)
+                                }
+                            }
+                        }
+                        .disabled(!cameraManager.isCameraAvailable)
                         
+                        // Upload Button
+                        Button(action: {
+                            showingImagePicker = true
+                        }) {
+                            VStack(spacing: 8) {
+                                Image(systemName: "photo.on.rectangle")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(.white)
+                                
+                                Text("Upload")
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                    }
+                    
+                    // Status Text
+                    if isRecording {
                         Text("Recording...")
                             .font(.headline)
                             .foregroundColor(.red)
+                            .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isRecording)
+                    } else if let videoURL = recordedVideoURL {
+                        VStack(spacing: 12) {
+                            Text("Video Recorded!")
+                                .font(.headline)
+                                .foregroundColor(.green)
+                            
+                            Button("Play Video") {
+                                showingVideoPlayer = true
+                            }
+                            .foregroundColor(.blue)
+                            .font(.subheadline)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+        .onAppear {
+            cameraManager.checkCameraPermission()
+        }
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(mediaTypes: ["public.movie"], allowsEditing: true) { url in
+                if let videoURL = url {
+                    recordedVideoURL = videoURL
+                }
+            }
+        }
+        .sheet(isPresented: $showingVideoPlayer) {
+            if let videoURL = recordedVideoURL {
+                VideoPlayerView(videoURL: videoURL)
+            }
+        }
+        .onReceive(cameraManager.$recordedVideoURL) { url in
+            recordedVideoURL = url
+        }
+    }
+}
+
+// Camera Preview View
+struct CameraPreviewView: UIViewRepresentable {
+    let previewLayer: AVCaptureVideoPreviewLayer
+    
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        previewLayer.frame = view.bounds
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(previewLayer)
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {
+        previewLayer.frame = uiView.bounds
+    }
+}
+
+// Camera Manager
+class CameraManager: ObservableObject {
+    @Published var isCameraAvailable = false
+    @Published var recordedVideoURL: URL?
+    
+    private var captureSession: AVCaptureSession?
+    private var videoOutput: AVCaptureMovieFileOutput?
+    var previewLayer: AVCaptureVideoPreviewLayer?
+    
+    func checkCameraPermission() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            setupCamera()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        self.setupCamera()
                     }
                 }
+            }
+        case .denied, .restricted:
+            break
+        @unknown default:
+            break
+        }
+    }
+    
+    private func setupCamera() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let session = AVCaptureSession()
+            session.sessionPreset = .high
+            
+            guard let videoDevice = AVCaptureDevice.default(for: .video),
+                  let videoInput = try? AVCaptureDeviceInput(device: videoDevice) else {
+                return
+            }
+            
+            if session.canAddInput(videoInput) {
+                session.addInput(videoInput)
+            }
+            
+            let movieOutput = AVCaptureMovieFileOutput()
+            if session.canAddOutput(movieOutput) {
+                session.addOutput(movieOutput)
+            }
+            
+            let previewLayer = AVCaptureVideoPreviewLayer(session: session)
+            
+            DispatchQueue.main.async {
+                self.captureSession = session
+                self.videoOutput = movieOutput
+                self.previewLayer = previewLayer
+                self.isCameraAvailable = true
                 
-                Spacer(minLength: 50)
+                session.startRunning()
             }
         }
     }
+    
+    func startRecording() {
+        guard let videoOutput = videoOutput else { return }
+        
+        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let videoName = "training_video_\(Date().timeIntervalSince1970).mov"
+        let videoURL = documentsPath.appendingPathComponent(videoName)
+        
+        videoOutput.startRecording(to: videoURL, recordingDelegate: self)
+    }
+    
+    func stopRecording() {
+        videoOutput?.stopRecording()
+    }
+}
+
+extension CameraManager: AVCaptureFileOutputRecordingDelegate {
+    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        DispatchQueue.main.async {
+            if error == nil {
+                self.recordedVideoURL = outputFileURL
+            }
+        }
+    }
+}
+
+// Image Picker for uploading videos
+struct ImagePicker: UIViewControllerRepresentable {
+    let mediaTypes: [String]
+    let allowsEditing: Bool
+    let completion: (URL?) -> Void
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.mediaTypes = mediaTypes
+        picker.allowsEditing = allowsEditing
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(completion: completion)
+    }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let completion: (URL?) -> Void
+        
+        init(completion: @escaping (URL?) -> Void) {
+            self.completion = completion
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+            if let videoURL = info[.mediaURL] as? URL {
+                completion(videoURL)
+            } else {
+                completion(nil)
+            }
+            picker.dismiss(animated: true)
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            completion(nil)
+            picker.dismiss(animated: true)
+        }
+    }
+}
+
+// Video Player View
+struct VideoPlayerView: UIViewControllerRepresentable {
+    let videoURL: URL
+    
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let player = AVPlayer(url: videoURL)
+        let playerViewController = AVPlayerViewController()
+        playerViewController.player = player
+        return playerViewController
+    }
+    
+    func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {}
 }
 
 #Preview {
     VideoAnalysisView()
-        .environmentObject(AuthenticationManager())
 } 
