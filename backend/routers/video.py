@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response
 from sqlmodel import Session, select
 from typing import List
 import os
@@ -188,4 +188,26 @@ async def download_video(
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="Video file not found")
     
-    return {"file_path": file_path, "filename": analysis.video_filename} 
+    # Read the video file and return it as a response
+    try:
+        with open(file_path, 'rb') as f:
+            video_data = f.read()
+        
+        # Determine content type based on file extension
+        content_type = "video/mp4"  # Default
+        if file_path.endswith('.mov'):
+            content_type = "video/quicktime"
+        elif file_path.endswith('.avi'):
+            content_type = "video/x-msvideo"
+        elif file_path.endswith('.mkv'):
+            content_type = "video/x-matroska"
+        
+        return Response(
+            content=video_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={analysis.video_filename}"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading video file: {str(e)}") 

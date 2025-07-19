@@ -169,4 +169,56 @@ struct TrainingPlan: Codable, Identifiable {
             completedDays.insert(dayKey)
         }
     }
+}
+
+// Video Analysis Model
+struct VideoAnalysis: Codable, Identifiable {
+    let id: Int
+    let userId: Int
+    let videoFilename: String
+    let exerciseType: String
+    let analysisResult: String
+    let feedback: String
+    let createdAt: String
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case videoFilename = "video_filename"
+        case exerciseType = "exercise_type"
+        case analysisResult = "analysis_result"
+        case feedback
+        case createdAt = "created_at"
+    }
+    
+    // Computed properties for display
+    var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        
+        if let date = formatter.date(from: createdAt) {
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            return formatter.string(from: date)
+        }
+        return "Recent"
+    }
+    
+    var exerciseTypeDisplay: String {
+        return exerciseType.replacingOccurrences(of: "_", with: " ").capitalized
+    }
+    
+    // Parse analysis result to extract key information
+    var parsedAnalysisResult: [String: Any]? {
+        guard let data = analysisResult.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+    
+    var formRating: String {
+        return parsedAnalysisResult?["form_rating"] as? String ?? "Unknown"
+    }
+    
+    var confidenceScore: Double {
+        return parsedAnalysisResult?["confidence_score"] as? Double ?? 0.0
+    }
 } 

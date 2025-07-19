@@ -17,6 +17,13 @@ struct VideoAnalysisView: View {
     @State private var showingExerciseTypePicker = false
     @State private var selectedExerciseType = "pushup"
     @State private var uploadedVideoURL: URL?
+    @State private var videoAnalyses: [VideoAnalysis] = []
+    @State private var isLoadingAnalyses = false
+    @State private var showingAnalysisDetail = false
+    @State private var selectedAnalysis: VideoAnalysis?
+    @State private var selectedViewMode = 0
+    @State private var showingDeleteAlert = false
+    @State private var analysisToDelete: VideoAnalysis?
     
     var body: some View {
         NavigationView {
@@ -25,135 +32,45 @@ struct VideoAnalysisView: View {
                 
                 VStack(spacing: 24) {
                     // Header
-                    VStack(spacing: 8) {
-                        Text("Video Analysis")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Video Analysis")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                            
+                            Text("Record or upload your training videos")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
                         
-                        Text("Record or upload your training videos")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
+                        Spacer()
+                        
+                        Button(action: {
+                            fetchVideoAnalyses()
+                        }) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                        }
                     }
                     .padding(.top, 20)
                     
-                    Spacer()
+                    // Segmented Control
+                    Picker("View Mode", selection: $selectedViewMode) {
+                        Text("Record").tag(0)
+                        Text("Analyses").tag(1)
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    .padding(.horizontal, 20)
                     
-                    // Camera Preview
-                    if let previewLayer = cameraManager.previewLayer {
-                        CameraPreviewView(previewLayer: previewLayer)
-                            .frame(height: 300)
-                            .cornerRadius(16)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                            )
+                    if selectedViewMode == 0 {
+                        // Recording View
+                        recordingView
                     } else {
-                        // Placeholder when camera not available
-                        VStack(spacing: 16) {
-                            Image(systemName: "video.slash")
-                                .font(.system(size: 60))
-                                .foregroundColor(.gray)
-                            
-                            Text("Camera Access Required")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            
-                            Text("Please grant camera permissions to record videos")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                                .multilineTextAlignment(.center)
-                        }
-                        .frame(height: 300)
-                        .frame(maxWidth: .infinity)
-                        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                        .cornerRadius(16)
+                        // Analyses View
+                        analysesView
                     }
-                    
-                    // Recording Controls
-                    HStack(spacing: 40) {
-                        // Record Button
-                        Button(action: {
-                            if isRecording {
-                                cameraManager.stopRecording()
-                                isRecording = false
-                            } else {
-                                cameraManager.startRecording()
-                                isRecording = true
-                            }
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(isRecording ? Color.red : Color.white)
-                                    .frame(width: 80, height: 80)
-                                
-                                if isRecording {
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.white)
-                                        .frame(width: 32, height: 32)
-                                } else {
-                                    Circle()
-                                        .fill(Color.red)
-                                        .frame(width: 60, height: 60)
-                                }
-                            }
-                        }
-                        .disabled(!cameraManager.isCameraAvailable)
-                        
-                        // Upload Button
-                        Button(action: {
-                            showingImagePicker = true
-                        }) {
-                            VStack(spacing: 8) {
-                                Image(systemName: "photo.on.rectangle")
-                                    .font(.system(size: 30))
-                                    .foregroundColor(.white)
-                                
-                                Text("Upload")
-                                    .font(.caption)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                    }
-                    
-                    // Status Text
-                    if isRecording {
-                        Text("Recording...")
-                            .font(.headline)
-                            .foregroundColor(.red)
-                            .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isRecording)
-                    } else if let videoURL = recordedVideoURL {
-                        VStack(spacing: 12) {
-                            Text("Video Recorded!")
-                                .font(.headline)
-                                .foregroundColor(.green)
-                            
-                            if videoSavedToPhotos {
-                                HStack {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                    Text("Saved to Photos")
-                                        .font(.caption)
-                                        .foregroundColor(.green)
-                                }
-                            }
-                            
-                            Button("Play Video") {
-                                showingVideoPlayer = true
-                            }
-                            .foregroundColor(.blue)
-                            .font(.subheadline)
-                            
-                            Button("Upload for Analysis") {
-                                showingExerciseTypePicker = true
-                            }
-                            .foregroundColor(.orange)
-                            .font(.subheadline)
-                            .padding(.top, 8)
-                        }
-                    }
-                    
-                    Spacer()
                 }
                 .padding(.horizontal, 20)
             }
@@ -190,6 +107,277 @@ struct VideoAnalysisView: View {
                 }
             )
         }
+        .sheet(isPresented: $showingAnalysisDetail) {
+            if let analysis = selectedAnalysis {
+                VideoAnalysisDetailView(
+                    analysis: analysis,
+                    onDelete: {
+                        // Refresh the video analyses list
+                        fetchVideoAnalyses()
+                    }
+                )
+            }
+        }
+        .onAppear {
+            fetchVideoAnalyses()
+        }
+        .alert("Delete Analysis", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                if let analysis = analysisToDelete {
+                    deleteVideoAnalysis(analysis: analysis)
+                }
+            }
+        } message: {
+            Text("Are you sure you want to delete this video analysis? This action cannot be undone.")
+        }
+
+    }
+    
+    // MARK: - Computed Views
+    
+    private var recordingView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            
+            // Camera Preview
+            if let previewLayer = cameraManager.previewLayer {
+                CameraPreviewView(previewLayer: previewLayer)
+                    .frame(height: 300)
+                    .cornerRadius(16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                    )
+            } else {
+                // Placeholder when camera not available
+                VStack(spacing: 16) {
+                    Image(systemName: "video.slash")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
+                    
+                    Text("Camera Access Required")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text("Please grant camera permissions to record videos")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(height: 300)
+                .frame(maxWidth: .infinity)
+                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                .cornerRadius(16)
+            }
+            
+            // Recording Controls
+            HStack(spacing: 40) {
+                // Record Button
+                Button(action: {
+                    if isRecording {
+                        cameraManager.stopRecording()
+                        isRecording = false
+                    } else {
+                        cameraManager.startRecording()
+                        isRecording = true
+                    }
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(isRecording ? Color.red : Color.white)
+                            .frame(width: 80, height: 80)
+                        
+                        if isRecording {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white)
+                                .frame(width: 32, height: 32)
+                        } else {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 60, height: 60)
+                        }
+                    }
+                }
+                .disabled(!cameraManager.isCameraAvailable)
+                
+                // Upload Button
+                Button(action: {
+                    showingImagePicker = true
+                }) {
+                    VStack(spacing: 8) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 30))
+                            .foregroundColor(.white)
+                        
+                        Text("Upload")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            
+            // Status Text
+            if isRecording {
+                Text("Recording...")
+                    .font(.headline)
+                    .foregroundColor(.red)
+                    .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isRecording)
+            } else if let videoURL = recordedVideoURL {
+                VStack(spacing: 12) {
+                    Text("Video Recorded!")
+                        .font(.headline)
+                        .foregroundColor(.green)
+                    
+                    if videoSavedToPhotos {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("Saved to Photos")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    }
+                    
+                    Button("Play Video") {
+                        showingVideoPlayer = true
+                    }
+                    .foregroundColor(.blue)
+                    .font(.subheadline)
+                    
+                    Button("Upload for Analysis") {
+                        showingExerciseTypePicker = true
+                    }
+                    .foregroundColor(.orange)
+                    .font(.subheadline)
+                    .padding(.top, 8)
+                }
+            }
+            
+            Spacer()
+        }
+    }
+    
+    private var analysesView: some View {
+        VStack(spacing: 16) {
+            if isLoadingAnalyses {
+                ProgressView("Loading analyses...")
+                    .foregroundColor(.white)
+            } else if videoAnalyses.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "video.slash")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray)
+                    
+                    Text("No Video Analyses")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    
+                    Text("Record and upload videos to see your analysis results")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(videoAnalyses) { analysis in
+                        VideoAnalysisCard(analysis: analysis) {
+                            selectedAnalysis = analysis
+                            showingAnalysisDetail = true
+                        }
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                analysisToDelete = analysis
+                                showingDeleteAlert = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+                .listStyle(PlainListStyle())
+                .background(Color.black)
+            }
+        }
+    }
+    
+    // MARK: - Methods
+    
+    private func fetchVideoAnalyses() {
+        guard let token = authManager.authToken,
+              let userId = authManager.currentUser?.id else {
+            print("No authentication available")
+            return
+        }
+        
+        isLoadingAnalyses = true
+        
+        let url = URL(string: "http://192.168.4.27:8000/videos/user/\(userId)")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isLoadingAnalyses = false
+                
+                if let error = error {
+                    print("Error fetching video analyses: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse,
+                   httpResponse.statusCode == 200,
+                   let data = data {
+                    do {
+                        let analyses = try JSONDecoder().decode([VideoAnalysis].self, from: data)
+                        self.videoAnalyses = analyses
+                        print("Fetched \(analyses.count) video analyses")
+                    } catch {
+                        print("Error decoding video analyses: \(error)")
+                    }
+                } else {
+                    print("Failed to fetch video analyses")
+                }
+            }
+        }.resume()
+    }
+    
+    private func deleteVideoAnalysis(analysis: VideoAnalysis) {
+        guard let token = authManager.authToken else {
+            print("No authentication available")
+            return
+        }
+        
+        let url = URL(string: "http://192.168.4.27:8000/videos/\(analysis.id)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Delete error: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 200 {
+                        print("Video analysis deleted successfully")
+                        // Remove from local array
+                        self.videoAnalyses.removeAll { $0.id == analysis.id }
+                    } else {
+                        print("Delete failed with status: \(httpResponse.statusCode)")
+                        if let data = data {
+                            print("Error response: \(String(data: data, encoding: .utf8) ?? "")")
+                        }
+                    }
+                }
+            }
+        }.resume()
     }
     
     private func uploadVideoForAnalysis(videoURL: URL, exerciseType: String) {
@@ -537,6 +725,323 @@ struct ExerciseTypePickerView: View {
                 }
                 .foregroundColor(.white)
             }
+        }
+    }
+}
+
+// MARK: - Video Analysis Card
+
+struct VideoAnalysisCard: View {
+    let analysis: VideoAnalysis
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(analysis.exerciseTypeDisplay)
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        Text(analysis.formattedDate)
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(analysis.formRating)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(formRatingColor)
+                        
+                        Text("\(Int(analysis.confidenceScore * 100))%")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                }
+                
+                Text(analysis.feedback)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+            }
+            .padding()
+            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+            .cornerRadius(12)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var formRatingColor: Color {
+        switch analysis.formRating.lowercased() {
+        case "excellent": return .green
+        case "good": return .blue
+        case "fair": return .orange
+        case "poor": return .red
+        default: return .gray
+        }
+    }
+}
+
+// MARK: - Video Analysis Detail View
+
+struct VideoAnalysisDetailView: View {
+    let analysis: VideoAnalysis
+    let onDelete: () -> Void
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authManager: AuthenticationManager
+    @State private var showingVideoPlayer = false
+    @State private var downloadedVideoURL: URL?
+    @State private var isDownloadingVideo = false
+    @State private var downloadProgress: Double = 0.0
+    @State private var showingDeleteAlert = false
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Header
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(analysis.exerciseTypeDisplay)
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                            
+                            Text(analysis.formattedDate)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        // Form Rating Card
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Form Analysis")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Rating")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                    Text(analysis.formRating)
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(formRatingColor)
+                                }
+                                
+                                Spacer()
+                                
+                                VStack(alignment: .trailing, spacing: 4) {
+                                    Text("Confidence")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                    Text("\(Int(analysis.confidenceScore * 100))%")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                        .cornerRadius(12)
+                        
+                        // Feedback
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Feedback")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            Text(analysis.feedback)
+                                .font(.body)
+                                .foregroundColor(.gray)
+                                .lineSpacing(4)
+                        }
+                        
+                        // Play Video Button
+                        Button(action: {
+                            downloadAndPlayVideo()
+                        }) {
+                            HStack {
+                                Image(systemName: "play.circle.fill")
+                                    .font(.title2)
+                                Text("Play Video")
+                                    .font(.headline)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.blue)
+                            .cornerRadius(12)
+                        }
+                        
+                        // Delete Button
+                        Button(action: {
+                            showingDeleteAlert = true
+                        }) {
+                            HStack {
+                                Image(systemName: "trash.circle.fill")
+                                    .font(.title2)
+                                Text("Delete Analysis")
+                                    .font(.headline)
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red)
+                            .cornerRadius(12)
+                        }
+                    }
+                    .padding()
+                }
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") {
+                    dismiss()
+                }
+                .foregroundColor(.white)
+            }
+        }
+        .sheet(isPresented: $showingVideoPlayer) {
+            if let videoURL = downloadedVideoURL {
+                VideoPlayerView(videoURL: videoURL)
+            }
+        }
+        .overlay(
+            // Download Progress Overlay
+            Group {
+                if isDownloadingVideo {
+                    ZStack {
+                        Color.black.opacity(0.7)
+                            .ignoresSafeArea()
+                        
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            
+                            Text("Downloading Video...")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            ProgressView(value: downloadProgress)
+                                .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                                .frame(width: 200)
+                        }
+                        .padding()
+                        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                        .cornerRadius(16)
+                    }
+                }
+            }
+        )
+        .alert("Delete Analysis", isPresented: $showingDeleteAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                deleteVideoAnalysis()
+            }
+        } message: {
+            Text("Are you sure you want to delete this video analysis? This action cannot be undone.")
+        }
+    }
+    
+    private func deleteVideoAnalysis() {
+        guard let token = authManager.authToken else {
+            print("No authentication available")
+            return
+        }
+        
+        let url = URL(string: "http://192.168.4.27:8000/videos/\(analysis.id)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Delete error: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 200 {
+                        print("Video analysis deleted successfully")
+                        onDelete() // Callback to refresh the main view
+                        dismiss() // Close the detail view
+                    } else {
+                        print("Delete failed with status: \(httpResponse.statusCode)")
+                        if let data = data {
+                            print("Error response: \(String(data: data, encoding: .utf8) ?? "")")
+                        }
+                    }
+                }
+            }
+        }.resume()
+    }
+    
+    private func downloadAndPlayVideo() {
+        guard let token = authManager.authToken else {
+            print("No authentication available")
+            return
+        }
+        
+        isDownloadingVideo = true
+        downloadProgress = 0.0
+        
+        let url = URL(string: "http://192.168.4.27:8000/videos/download/\(analysis.id)")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isDownloadingVideo = false
+                
+                if let error = error {
+                    print("Download error: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse,
+                   httpResponse.statusCode == 200,
+                   let data = data {
+                    
+                    // Save video to temporary file
+                    let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    let videoName = "downloaded_video_\(analysis.id).mov"
+                    let videoURL = documentsPath.appendingPathComponent(videoName)
+                    
+                    do {
+                        try data.write(to: videoURL)
+                        self.downloadedVideoURL = videoURL
+                        self.showingVideoPlayer = true
+                        print("Video downloaded and saved to: \(videoURL)")
+                    } catch {
+                        print("Error saving video: \(error)")
+                    }
+                } else {
+                    print("Failed to download video")
+                }
+            }
+        }.resume()
+    }
+    
+    private var formRatingColor: Color {
+        switch analysis.formRating.lowercased() {
+        case "excellent": return .green
+        case "good": return .blue
+        case "fair": return .orange
+        case "poor": return .red
+        default: return .gray
         }
     }
 }
