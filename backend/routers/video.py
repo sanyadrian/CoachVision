@@ -10,6 +10,7 @@ from models import (
     UserProfile, VideoAnalysis, VideoAnalysisRequest, VideoAnalysisResponse
 )
 from routers.auth import verify_token
+from mediapipe_analysis import MediaPipePoseAnalyzer
 
 router = APIRouter()
 
@@ -17,39 +18,69 @@ router = APIRouter()
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-def analyze_video_basic(video_path: str, exercise_type: str) -> dict:
+def analyze_video_with_mediapipe(video_path: str, exercise_type: str) -> dict:
     """
-    Basic video analysis (placeholder for future pose estimation)
-    In the future, this will use Mediapipe or OpenPose for actual analysis
+    Real video analysis using MediaPipe Pose estimation
     """
-    # Mock analysis for now
+    try:
+        analyzer = MediaPipePoseAnalyzer()
+        analysis_result = analyzer.analyze_video(video_path, exercise_type)
+        
+        # Generate feedback text
+        feedback = f"""
+        Analysis for {analysis_result['exercise_type']}:
+        
+        Overall Form Rating: {analysis_result['form_rating']}
+        Form Score: {analysis_result['form_score']}/100
+        Confidence Score: {analysis_result['confidence_score']:.2f}
+        Frames Analyzed: {analysis_result['total_frames_analyzed']}
+        
+        Recommendations:
+        {chr(10).join(f"- {rec}" for rec in analysis_result['recommendations'])}
+        
+        Areas for Improvement:
+        {chr(10).join(f"- {area}" for area in analysis_result['areas_for_improvement'])}
+        
+        Issues Detected:
+        {chr(10).join(f"- {issue}" for issue in analysis_result['issues_detected']) if analysis_result['issues_detected'] else "- No major issues detected"}
+        """
+        
+        return {
+            "analysis_result": analysis_result,
+            "feedback": feedback
+        }
+        
+    except Exception as e:
+        print(f"Error in MediaPipe analysis: {str(e)}")
+        # Fallback to basic analysis if MediaPipe fails
+        return analyze_video_basic_fallback(video_path, exercise_type, str(e))
+
+def analyze_video_basic_fallback(video_path: str, exercise_type: str, error_message: str) -> dict:
+    """
+    Fallback analysis when MediaPipe fails
+    """
     analysis_result = {
         "exercise_type": exercise_type,
         "analysis_timestamp": datetime.utcnow().isoformat(),
-        "confidence_score": 0.85,
-        "form_rating": "Good",
-        "recommendations": [
-            "Keep your back straight",
-            "Lower your body more",
-            "Maintain proper breathing"
-        ],
-        "areas_for_improvement": [
-            "Depth of movement",
-            "Core engagement"
-        ]
+        "confidence_score": 0.0,
+        "form_rating": "Error",
+        "form_score": 0,
+        "total_frames_analyzed": 0,
+        "issues_detected": [f"Analysis failed: {error_message}"],
+        "recommendations": ["Please try again with a clearer video"],
+        "areas_for_improvement": ["Video quality or pose detection issues"]
     }
     
     feedback = f"""
     Analysis for {exercise_type}:
     
-    Overall Form Rating: {analysis_result['form_rating']}
-    Confidence Score: {analysis_result['confidence_score']}
+    Error: {error_message}
     
-    Recommendations:
-    {chr(10).join(f"- {rec}" for rec in analysis_result['recommendations'])}
-    
-    Areas for Improvement:
-    {chr(10).join(f"- {area}" for area in analysis_result['areas_for_improvement'])}
+    Please ensure:
+    - The video shows a clear view of the exercise
+    - Good lighting conditions
+    - The person is fully visible in the frame
+    - The video is not too short or too long
     """
     
     return {
@@ -91,8 +122,8 @@ async def analyze_video(
             content = await video_file.read()
             await f.write(content)
         
-        # Analyze video (basic analysis for now)
-        analysis_data = analyze_video_basic(file_path, exercise_type)
+        # Analyze video using MediaPipe Pose
+        analysis_data = analyze_video_with_mediapipe(file_path, exercise_type)
         
         # Create video analysis record
         video_analysis = VideoAnalysis(
