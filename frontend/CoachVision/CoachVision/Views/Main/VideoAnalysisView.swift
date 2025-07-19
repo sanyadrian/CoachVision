@@ -5,12 +5,18 @@ import Photos
 
 struct VideoAnalysisView: View {
     @StateObject private var cameraManager = CameraManager()
+    @EnvironmentObject var authManager: AuthenticationManager
     @State private var showingImagePicker = false
     @State private var showingCamera = false
     @State private var recordedVideoURL: URL?
     @State private var isRecording = false
     @State private var showingVideoPlayer = false
     @State private var videoSavedToPhotos = false
+    @State private var isUploading = false
+    @State private var uploadProgress: Double = 0.0
+    @State private var showingExerciseTypePicker = false
+    @State private var selectedExerciseType = "pushup"
+    @State private var uploadedVideoURL: URL?
     
     var body: some View {
         NavigationView {
@@ -137,6 +143,13 @@ struct VideoAnalysisView: View {
                             }
                             .foregroundColor(.blue)
                             .font(.subheadline)
+                            
+                            Button("Upload for Analysis") {
+                                showingExerciseTypePicker = true
+                            }
+                            .foregroundColor(.orange)
+                            .font(.subheadline)
+                            .padding(.top, 8)
                         }
                     }
                     
@@ -148,13 +161,14 @@ struct VideoAnalysisView: View {
         .onAppear {
             cameraManager.checkCameraPermission()
         }
-        .sheet(isPresented: $showingImagePicker) {
-            ImagePicker(mediaTypes: ["public.movie"], allowsEditing: true) { url in
-                if let videoURL = url {
-                    recordedVideoURL = videoURL
-                }
-            }
-        }
+                                .sheet(isPresented: $showingImagePicker) {
+                            ImagePicker(mediaTypes: ["public.movie"], allowsEditing: true) { url in
+                                if let videoURL = url {
+                                    recordedVideoURL = videoURL
+                                    uploadedVideoURL = videoURL
+                                }
+                            }
+                        }
         .sheet(isPresented: $showingVideoPlayer) {
             if let videoURL = recordedVideoURL {
                 VideoPlayerView(videoURL: videoURL)
@@ -166,6 +180,96 @@ struct VideoAnalysisView: View {
         .onReceive(cameraManager.$videoSavedToPhotos) { saved in
             videoSavedToPhotos = saved
         }
+        .sheet(isPresented: $showingExerciseTypePicker) {
+            ExerciseTypePickerView(
+                selectedExerciseType: $selectedExerciseType,
+                onUpload: {
+                    if let videoURL = uploadedVideoURL {
+                        uploadVideoForAnalysis(videoURL: videoURL, exerciseType: selectedExerciseType)
+                    }
+                }
+            )
+        }
+    }
+    
+    private func uploadVideoForAnalysis(videoURL: URL, exerciseType: String) {
+        guard let token = authManager.authToken,
+              let userId = authManager.currentUser?.id else {
+            print("No authentication available")
+            return
+        }
+        
+        isUploading = true
+        uploadProgress = 0.0
+        
+        // Create the upload URL
+        let uploadURL = URL(string: "http://192.168.4.27:8000/videos/analyze")!
+        
+        // Create the request
+        var request = URLRequest(url: uploadURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        // Create multipart form data
+        let boundary = UUID().uuidString
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        var body = Data()
+        
+        // Add user_id parameter
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"user_id\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(userId)\r\n".data(using: .utf8)!)
+        
+        // Add exercise_type parameter
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"exercise_type\"\r\n\r\n".data(using: .utf8)!)
+        body.append("\(exerciseType)\r\n".data(using: .utf8)!)
+        
+        // Add video file
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"video_file\"; filename=\"\(videoURL.lastPathComponent)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: video/mp4\r\n\r\n".data(using: .utf8)!)
+        
+        do {
+            let videoData = try Data(contentsOf: videoURL)
+            body.append(videoData)
+            body.append("\r\n".data(using: .utf8)!)
+        } catch {
+            print("Error reading video data: \(error)")
+            isUploading = false
+            return
+        }
+        
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        
+        request.httpBody = body
+        
+        // Perform the upload
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                isUploading = false
+                
+                if let error = error {
+                    print("Upload error: \(error)")
+                    return
+                }
+                
+                if let httpResponse = response as? HTTPURLResponse {
+                    if httpResponse.statusCode == 200 || httpResponse.statusCode == 201 {
+                        print("Video uploaded successfully!")
+                        if let data = data {
+                            print("Response: \(String(data: data, encoding: .utf8) ?? "")")
+                        }
+                    } else {
+                        print("Upload failed with status: \(httpResponse.statusCode)")
+                        if let data = data {
+                            print("Error response: \(String(data: data, encoding: .utf8) ?? "")")
+                        }
+                    }
+                }
+            }
+        }.resume()
     }
 }
 
@@ -176,15 +280,16 @@ struct CameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
         view.backgroundColor = .black
-        previewLayer.frame = view.bounds
-        previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
         return view
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
         DispatchQueue.main.async {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
             self.previewLayer.frame = uiView.bounds
+            CATransaction.commit()
         }
     }
 }
@@ -225,6 +330,7 @@ class CameraManager: NSObject, ObservableObject {
             
             guard let videoDevice = AVCaptureDevice.default(for: .video),
                   let videoInput = try? AVCaptureDeviceInput(device: videoDevice) else {
+                print("Failed to setup video device")
                 return
             }
             
@@ -246,9 +352,10 @@ class CameraManager: NSObject, ObservableObject {
                 self.previewLayer = previewLayer
                 self.isCameraAvailable = true
                 
-                // Start the session on the main thread
+                // Start the session on a background queue
                 DispatchQueue.global(qos: .userInitiated).async {
                     session.startRunning()
+                    print("Camera session started")
                 }
             }
         }
@@ -362,6 +469,76 @@ struct VideoPlayerView: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: AVPlayerViewController, context: Context) {}
+}
+
+// Exercise Type Picker View
+struct ExerciseTypePickerView: View {
+    @Environment(\.dismiss) var dismiss
+    @Binding var selectedExerciseType: String
+    let onUpload: () -> Void
+    
+    private let exerciseTypes = [
+        "pushup", "squat", "deadlift", "bench_press", "pullup", 
+        "plank", "burpee", "lunge", "mountain_climber", "jumping_jack"
+    ]
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                
+                VStack(spacing: 24) {
+                    Text("Select Exercise Type")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 16) {
+                        ForEach(exerciseTypes, id: \.self) { exerciseType in
+                            Button(action: {
+                                selectedExerciseType = exerciseType
+                            }) {
+                                VStack(spacing: 8) {
+                                    Text(exerciseType.replacingOccurrences(of: "_", with: " ").capitalized)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.white)
+                                        .multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(selectedExerciseType == exerciseType ? Color.blue : Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(12)
+                            }
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    Button("Upload Video") {
+                        onUpload()
+                        dismiss()
+                    }
+                    .foregroundColor(.white)
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.orange)
+                    .cornerRadius(12)
+                }
+                .padding()
+            }
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Cancel") {
+                    dismiss()
+                }
+                .foregroundColor(.white)
+            }
+        }
+    }
 }
 
 #Preview {

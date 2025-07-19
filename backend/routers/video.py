@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlmodel import Session, select
 from typing import List
 import os
@@ -59,8 +59,8 @@ def analyze_video_basic(video_path: str, exercise_type: str) -> dict:
 
 @router.post("/analyze", response_model=VideoAnalysisResponse)
 async def analyze_video(
-    user_id: int,
-    exercise_type: str,
+    user_id: int = Form(...),
+    exercise_type: str = Form(...),
     video_file: UploadFile = File(...),
     session: Session = Depends(get_session),
     current_user: UserProfile = Depends(verify_token)
