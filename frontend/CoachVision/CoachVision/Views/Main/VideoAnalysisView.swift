@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import AVKit
 import Photos
 
 struct VideoAnalysisView: View {
@@ -9,6 +10,7 @@ struct VideoAnalysisView: View {
     @State private var recordedVideoURL: URL?
     @State private var isRecording = false
     @State private var showingVideoPlayer = false
+    @State private var videoSavedToPhotos = false
     
     var body: some View {
         NavigationView {
@@ -120,6 +122,16 @@ struct VideoAnalysisView: View {
                                 .font(.headline)
                                 .foregroundColor(.green)
                             
+                            if videoSavedToPhotos {
+                                HStack {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                    Text("Saved to Photos")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                }
+                            }
+                            
                             Button("Play Video") {
                                 showingVideoPlayer = true
                             }
@@ -151,6 +163,9 @@ struct VideoAnalysisView: View {
         .onReceive(cameraManager.$recordedVideoURL) { url in
             recordedVideoURL = url
         }
+        .onReceive(cameraManager.$videoSavedToPhotos) { saved in
+            videoSavedToPhotos = saved
+        }
     }
 }
 
@@ -160,6 +175,7 @@ struct CameraPreviewView: UIViewRepresentable {
     
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
+        view.backgroundColor = .black
         previewLayer.frame = view.bounds
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
@@ -167,14 +183,17 @@ struct CameraPreviewView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
-        previewLayer.frame = uiView.bounds
+        DispatchQueue.main.async {
+            self.previewLayer.frame = uiView.bounds
+        }
     }
 }
 
 // Camera Manager
-class CameraManager: ObservableObject {
+class CameraManager: NSObject, ObservableObject {
     @Published var isCameraAvailable = false
     @Published var recordedVideoURL: URL?
+    @Published var videoSavedToPhotos = false
     
     private var captureSession: AVCaptureSession?
     private var videoOutput: AVCaptureMovieFileOutput?
@@ -219,6 +238,7 @@ class CameraManager: ObservableObject {
             }
             
             let previewLayer = AVCaptureVideoPreviewLayer(session: session)
+            previewLayer.videoGravity = .resizeAspectFill
             
             DispatchQueue.main.async {
                 self.captureSession = session
@@ -226,7 +246,10 @@ class CameraManager: ObservableObject {
                 self.previewLayer = previewLayer
                 self.isCameraAvailable = true
                 
-                session.startRunning()
+                // Start the session on the main thread
+                DispatchQueue.global(qos: .userInitiated).async {
+                    session.startRunning()
+                }
             }
         }
     }
@@ -251,6 +274,34 @@ extension CameraManager: AVCaptureFileOutputRecordingDelegate {
         DispatchQueue.main.async {
             if error == nil {
                 self.recordedVideoURL = outputFileURL
+                // Save video to photo library
+                self.saveVideoToPhotos(url: outputFileURL)
+            }
+        }
+    }
+    
+    private func saveVideoToPhotos(url: URL) {
+        PHPhotoLibrary.requestAuthorization { status in
+            switch status {
+            case .authorized, .limited:
+                PHPhotoLibrary.shared().performChanges({
+                    PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                }) { success, error in
+                    DispatchQueue.main.async {
+                        if success {
+                            print("Video saved to photo library successfully")
+                            self.videoSavedToPhotos = true
+                        } else {
+                            print("Failed to save video to photo library: \(error?.localizedDescription ?? "Unknown error")")
+                        }
+                    }
+                }
+            case .denied, .restricted:
+                print("Photo library access denied")
+            case .notDetermined:
+                print("Photo library access not determined")
+            @unknown default:
+                print("Unknown photo library authorization status")
             }
         }
     }
