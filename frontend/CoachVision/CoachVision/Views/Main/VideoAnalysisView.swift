@@ -55,6 +55,7 @@ struct VideoAnalysisView: View {
                         }
                     }
                     .padding(.top, 20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     
                     // Segmented Control
                     Picker("View Mode", selection: $selectedViewMode) {
@@ -73,6 +74,35 @@ struct VideoAnalysisView: View {
                     }
                 }
                 .padding(.horizontal, 20)
+            }
+            
+            // Upload Loading Overlay
+            if isUploading {
+                ZStack {
+                    Color.black.opacity(0.7)
+                        .ignoresSafeArea()
+                    
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        
+                        Text("Analyzing Video...")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        
+                        Text("This may take a few moments")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                        
+                        ProgressView(value: uploadProgress)
+                            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                            .frame(width: 200)
+                    }
+                    .padding()
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                    .cornerRadius(16)
+                }
             }
         }
         .onAppear {
@@ -101,7 +131,7 @@ struct VideoAnalysisView: View {
             ExerciseTypePickerView(
                 selectedExerciseType: $selectedExerciseType,
                 onUpload: {
-                    if let videoURL = uploadedVideoURL {
+                    if let videoURL = recordedVideoURL ?? uploadedVideoURL {
                         uploadVideoForAnalysis(videoURL: videoURL, exerciseType: selectedExerciseType)
                     }
                 }
@@ -390,6 +420,19 @@ struct VideoAnalysisView: View {
         isUploading = true
         uploadProgress = 0.0
         
+        // Start progress simulation
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                uploadProgress = 0.3
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    uploadProgress = 0.7
+                }
+            }
+        }
+        
         // Create the upload URL
         let uploadURL = URL(string: "http://192.168.4.27:8000/videos/analyze")!
         
@@ -433,8 +476,8 @@ struct VideoAnalysisView: View {
         
         request.httpBody = body
         
-        // Perform the upload
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        // Perform the upload with progress tracking
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 isUploading = false
                 
@@ -449,6 +492,18 @@ struct VideoAnalysisView: View {
                         if let data = data {
                             print("Response: \(String(data: data, encoding: .utf8) ?? "")")
                         }
+                        
+                        // Complete progress animation
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            uploadProgress = 1.0
+                        }
+                        
+                        // Switch to Analyses tab and refresh data
+                        selectedViewMode = 1
+                        fetchVideoAnalyses()
+                        
+                        // Dismiss the exercise type picker
+                        showingExerciseTypePicker = false
                     } else {
                         print("Upload failed with status: \(httpResponse.statusCode)")
                         if let data = data {
