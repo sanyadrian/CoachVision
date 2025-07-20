@@ -848,21 +848,137 @@ struct VideoAnalysisDetailView: View {
                                         .foregroundColor(.white)
                                 }
                             }
+                            
+                            // Form Score
+                            if let formScore = analysis.parsedAnalysisResult?["form_score"] as? Int {
+                                HStack {
+                                    Text("Form Score")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                    Spacer()
+                                    Text("\(formScore)/100")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                }
+                                .padding(.top, 8)
+                            }
+                            
+                            // Frames Analyzed
+                            if let framesAnalyzed = analysis.parsedAnalysisResult?["total_frames_analyzed"] as? Int {
+                                HStack {
+                                    Text("Frames Analyzed")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                    Spacer()
+                                    Text("\(framesAnalyzed)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
+                                }
+                                .padding(.top, 4)
+                            }
                         }
                         .padding()
                         .background(Color(red: 0.1, green: 0.1, blue: 0.15))
                         .cornerRadius(12)
                         
-                        // Feedback
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Feedback")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            
-                            Text(analysis.feedback)
-                                .font(.body)
-                                .foregroundColor(.gray)
-                                .lineSpacing(4)
+                        // Recommendations
+                        if let recommendations = analysis.parsedAnalysisResult?["recommendations"] as? [String], !recommendations.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Recommendations")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(recommendations, id: \.self) { recommendation in
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Image(systemName: "lightbulb.fill")
+                                                .foregroundColor(.yellow)
+                                                .font(.caption)
+                                            Text(recommendation)
+                                                .font(.body)
+                                                .foregroundColor(.white)
+                                                .multilineTextAlignment(.leading)
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                            .cornerRadius(12)
+                        }
+                        
+                        // Areas for Improvement
+                        if let areasForImprovement = analysis.parsedAnalysisResult?["areas_for_improvement"] as? [String], !areasForImprovement.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Areas for Improvement")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(areasForImprovement, id: \.self) { area in
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .foregroundColor(.orange)
+                                                .font(.caption)
+                                            Text(area)
+                                                .font(.body)
+                                                .foregroundColor(.white)
+                                                .multilineTextAlignment(.leading)
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                            .cornerRadius(12)
+                        }
+                        
+                        // Issues Detected
+                        if let issuesDetected = analysis.parsedAnalysisResult?["issues_detected"] as? [String], !issuesDetected.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Issues Detected")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    ForEach(issuesDetected, id: \.self) { issue in
+                                        HStack(alignment: .top, spacing: 8) {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundColor(.red)
+                                                .font(.caption)
+                                            Text(issue)
+                                                .font(.body)
+                                                .foregroundColor(.white)
+                                                .multilineTextAlignment(.leading)
+                                            Spacer()
+                                        }
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                            .cornerRadius(12)
+                        }
+                        
+                        // Raw Feedback (fallback)
+                        if analysis.parsedAnalysisResult == nil {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Feedback")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                Text(analysis.feedback)
+                                    .font(.body)
+                                    .foregroundColor(.gray)
+                                    .lineSpacing(4)
+                            }
+                            .padding()
+                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                            .cornerRadius(12)
                         }
                         
                         // Play Video Button
