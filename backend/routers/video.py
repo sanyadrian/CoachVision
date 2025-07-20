@@ -4,6 +4,7 @@ from typing import List
 import os
 import uuid
 import aiofiles
+import json
 from datetime import datetime
 from database import get_session
 from models import (
@@ -130,7 +131,7 @@ async def analyze_video(
             user_id=user_id,
             video_filename=unique_filename,
             exercise_type=exercise_type,
-            analysis_result=str(analysis_data["analysis_result"]),
+            analysis_result=json.dumps(analysis_data["analysis_result"]),
             feedback=analysis_data["feedback"]
         )
         
