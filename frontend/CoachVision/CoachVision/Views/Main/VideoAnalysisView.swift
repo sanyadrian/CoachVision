@@ -276,6 +276,8 @@ struct VideoAnalysisView: View {
                     .font(.subheadline)
                     
                     Button("Upload for Analysis") {
+                        // Immediately switch to Analyses tab to prevent multiple uploads
+                        selectedViewMode = 1
                         showingExerciseTypePicker = true
                     }
                     .foregroundColor(.orange)
@@ -854,223 +856,285 @@ struct VideoAnalysisDetailView: View {
     @State private var isDownloadingVideo = false
     @State private var downloadProgress: Double = 0.0
     @State private var showingDeleteAlert = false
+    @State private var isViewReady = false
     
     var body: some View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        // Header
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(analysis.exerciseTypeDisplay)
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                            
-                            Text(analysis.formattedDate)
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        }
+                if !isViewReady {
+                    // Loading state
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         
-                        // Form Rating Card
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Form Analysis")
-                                .font(.headline)
+                        Text("Loading Analysis...")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            // Header
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(analysis.exerciseTypeDisplay)
+                                    .font(.largeTitle)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                
+                                Text(analysis.formattedDate)
+                                    .font(.subheadline)
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            // Form Rating Card
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Form Analysis")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Rating")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                        Text(analysis.formRating)
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(formRatingColor)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text("Confidence")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                        Text("\(Int(analysis.confidenceScore * 100))%")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                
+                                // Form Score
+                                if let formScore = analysis.parsedAnalysisResult?["form_score"] as? Int {
+                                    HStack {
+                                        Text("Form Score")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                        Spacer()
+                                        Text("\(formScore)/100")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.top, 8)
+                                }
+                                
+                                // Frames Analyzed
+                                if let framesAnalyzed = analysis.parsedAnalysisResult?["total_frames_analyzed"] as? Int {
+                                    HStack {
+                                        Text("Frames Analyzed")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                        Spacer()
+                                        Text("\(framesAnalyzed)")
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.top, 4)
+                                }
+                            }
+                            .padding()
+                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                            .cornerRadius(12)
+                            
+                            // Recommendations
+                            if let recommendations = analysis.parsedAnalysisResult?["recommendations"] as? [String], !recommendations.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Recommendations")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(recommendations, id: \.self) { recommendation in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Image(systemName: "lightbulb.fill")
+                                                    .foregroundColor(.yellow)
+                                                    .font(.caption)
+                                                Text(recommendation)
+                                                    .font(.body)
+                                                    .foregroundColor(.white)
+                                                    .multilineTextAlignment(.leading)
+                                                Spacer()
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding()
+                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(12)
+                            }
+                            
+                            // Areas for Improvement
+                            if let areasForImprovement = analysis.parsedAnalysisResult?["areas_for_improvement"] as? [String], !areasForImprovement.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Areas for Improvement")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(areasForImprovement, id: \.self) { area in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Image(systemName: "exclamationmark.triangle.fill")
+                                                    .foregroundColor(.orange)
+                                                    .font(.caption)
+                                                Text(area)
+                                                    .font(.body)
+                                                    .foregroundColor(.white)
+                                                    .multilineTextAlignment(.leading)
+                                                Spacer()
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding()
+                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(12)
+                            }
+                            
+                            // Issues Detected
+                            if let issuesDetected = analysis.parsedAnalysisResult?["issues_detected"] as? [String], !issuesDetected.isEmpty {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Issues Detected")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        ForEach(issuesDetected, id: \.self) { issue in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Image(systemName: "xmark.circle.fill")
+                                                    .foregroundColor(.red)
+                                                    .font(.caption)
+                                                Text(issue)
+                                                    .font(.body)
+                                                    .foregroundColor(.white)
+                                                    .multilineTextAlignment(.leading)
+                                                Spacer()
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding()
+                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(12)
+                            }
+                            
+                            // Raw Feedback (fallback)
+                            if analysis.parsedAnalysisResult == nil {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Analysis Data")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                    
+                                    if analysis.feedback.isEmpty {
+                                        VStack(spacing: 16) {
+                                            Image(systemName: "exclamationmark.triangle")
+                                                .font(.system(size: 40))
+                                                .foregroundColor(.orange)
+                                            
+                                            Text("Analysis Data Unavailable")
+                                                .font(.headline)
+                                                .foregroundColor(.white)
+                                            
+                                            Text("The analysis data could not be loaded. Please try refreshing or contact support if the issue persists.")
+                                                .font(.body)
+                                                .foregroundColor(.gray)
+                                                .multilineTextAlignment(.center)
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                    } else {
+                                        Text("Feedback")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        
+                                        Text(analysis.feedback)
+                                            .font(.body)
+                                            .foregroundColor(.gray)
+                                            .lineSpacing(4)
+                                    }
+                                }
+                                .padding()
+                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(12)
+                            }
+                            
+                            // Play Video Button
+                            Button(action: {
+                                downloadAndPlayVideo()
+                            }) {
+                                HStack {
+                                    Image(systemName: "play.circle.fill")
+                                        .font(.title2)
+                                    Text("Play Video")
+                                        .font(.headline)
+                                }
                                 .foregroundColor(.white)
-                            
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Rating")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                    Text(analysis.formRating)
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(formRatingColor)
-                                }
-                                
-                                Spacer()
-                                
-                                VStack(alignment: .trailing, spacing: 4) {
-                                    Text("Confidence")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                    Text("\(Int(analysis.confidenceScore * 100))%")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .cornerRadius(12)
                             }
                             
-                            // Form Score
-                            if let formScore = analysis.parsedAnalysisResult?["form_score"] as? Int {
+                            // Delete Button
+                            Button(action: {
+                                showingDeleteAlert = true
+                            }) {
                                 HStack {
-                                    Text("Form Score")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                    Spacer()
-                                    Text("\(formScore)/100")
+                                    Image(systemName: "trash.circle.fill")
                                         .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
+                                    Text("Delete Analysis")
+                                        .font(.headline)
                                 }
-                                .padding(.top, 8)
-                            }
-                            
-                            // Frames Analyzed
-                            if let framesAnalyzed = analysis.parsedAnalysisResult?["total_frames_analyzed"] as? Int {
-                                HStack {
-                                    Text("Frames Analyzed")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                    Spacer()
-                                    Text("\(framesAnalyzed)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                }
-                                .padding(.top, 4)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red)
+                                .cornerRadius(12)
                             }
                         }
                         .padding()
-                        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                        .cornerRadius(12)
-                        
-                        // Recommendations
-                        if let recommendations = analysis.parsedAnalysisResult?["recommendations"] as? [String], !recommendations.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Recommendations")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(recommendations, id: \.self) { recommendation in
-                                        HStack(alignment: .top, spacing: 8) {
-                                            Image(systemName: "lightbulb.fill")
-                                                .foregroundColor(.yellow)
-                                                .font(.caption)
-                                            Text(recommendation)
-                                                .font(.body)
-                                                .foregroundColor(.white)
-                                                .multilineTextAlignment(.leading)
-                                            Spacer()
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                            .cornerRadius(12)
-                        }
-                        
-                        // Areas for Improvement
-                        if let areasForImprovement = analysis.parsedAnalysisResult?["areas_for_improvement"] as? [String], !areasForImprovement.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Areas for Improvement")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(areasForImprovement, id: \.self) { area in
-                                        HStack(alignment: .top, spacing: 8) {
-                                            Image(systemName: "exclamationmark.triangle.fill")
-                                                .foregroundColor(.orange)
-                                                .font(.caption)
-                                            Text(area)
-                                                .font(.body)
-                                                .foregroundColor(.white)
-                                                .multilineTextAlignment(.leading)
-                                            Spacer()
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                            .cornerRadius(12)
-                        }
-                        
-                        // Issues Detected
-                        if let issuesDetected = analysis.parsedAnalysisResult?["issues_detected"] as? [String], !issuesDetected.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Issues Detected")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                
-                                VStack(alignment: .leading, spacing: 8) {
-                                    ForEach(issuesDetected, id: \.self) { issue in
-                                        HStack(alignment: .top, spacing: 8) {
-                                            Image(systemName: "xmark.circle.fill")
-                                                .foregroundColor(.red)
-                                                .font(.caption)
-                                            Text(issue)
-                                                .font(.body)
-                                                .foregroundColor(.white)
-                                                .multilineTextAlignment(.leading)
-                                            Spacer()
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                            .cornerRadius(12)
-                        }
-                        
-                        // Raw Feedback (fallback)
-                        if analysis.parsedAnalysisResult == nil {
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Feedback")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                
-                                Text(analysis.feedback)
-                                    .font(.body)
-                                    .foregroundColor(.gray)
-                                    .lineSpacing(4)
-                            }
-                            .padding()
-                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                            .cornerRadius(12)
-                        }
-                        
-                        // Play Video Button
-                        Button(action: {
-                            downloadAndPlayVideo()
-                        }) {
-                            HStack {
-                                Image(systemName: "play.circle.fill")
-                                    .font(.title2)
-                                Text("Play Video")
-                                    .font(.headline)
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .cornerRadius(12)
-                        }
-                        
-                        // Delete Button
-                        Button(action: {
-                            showingDeleteAlert = true
-                        }) {
-                            HStack {
-                                Image(systemName: "trash.circle.fill")
-                                    .font(.title2)
-                                Text("Delete Analysis")
-                                    .font(.headline)
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.red)
-                            .cornerRadius(12)
-                        }
                     }
-                    .padding()
+                }
+            }
+        }
+        .onAppear {
+            // Debug: Print analysis data
+            print("VideoAnalysisDetailView appeared")
+            print("Analysis ID: \(analysis.id)")
+            print("Exercise Type: \(analysis.exerciseType)")
+            print("Form Rating: \(analysis.formRating)")
+            print("Confidence Score: \(analysis.confidenceScore)")
+            print("Analysis Result: \(analysis.analysisResult)")
+            print("Parsed Result: \(analysis.parsedAnalysisResult ?? [:])")
+            
+            // Check if we have valid data
+            let hasValidData = analysis.parsedAnalysisResult != nil || !analysis.feedback.isEmpty
+            
+            if hasValidData {
+                // Small delay to ensure view is properly loaded
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isViewReady = true
+                }
+            } else {
+                // If no valid data, show error state
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    isViewReady = true
                 }
             }
         }
@@ -1126,7 +1190,7 @@ struct VideoAnalysisDetailView: View {
         }
     }
     
-    private func deleteVideoAnalysis() {
+    func deleteVideoAnalysis() {
         guard let token = authManager.authToken else {
             print("No authentication available")
             return
@@ -1160,7 +1224,7 @@ struct VideoAnalysisDetailView: View {
         }.resume()
     }
     
-    private func downloadAndPlayVideo() {
+    func downloadAndPlayVideo() {
         guard let token = authManager.authToken else {
             print("No authentication available")
             return
@@ -1206,7 +1270,7 @@ struct VideoAnalysisDetailView: View {
         }.resume()
     }
     
-    private var formRatingColor: Color {
+    var formRatingColor: Color {
         switch analysis.formRating.lowercased() {
         case "excellent": return .green
         case "good": return .blue

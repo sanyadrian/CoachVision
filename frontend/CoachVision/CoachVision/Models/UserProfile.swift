@@ -210,15 +210,37 @@ struct VideoAnalysis: Codable, Identifiable {
     
     // Parse analysis result to extract key information
     var parsedAnalysisResult: [String: Any]? {
-        guard let data = analysisResult.data(using: .utf8) else { return nil }
-        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        guard let data = analysisResult.data(using: .utf8) else { 
+            print("Failed to convert analysisResult to data: \(analysisResult)")
+            return nil 
+        }
+        
+        do {
+            let result = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            if result == nil {
+                print("Failed to parse analysisResult as JSON: \(analysisResult)")
+            }
+            return result
+        } catch {
+            print("JSON parsing error for analysisResult: \(error)")
+            print("Raw analysisResult: \(analysisResult)")
+            return nil
+        }
     }
     
     var formRating: String {
-        return parsedAnalysisResult?["form_rating"] as? String ?? "Unknown"
+        let rating = parsedAnalysisResult?["form_rating"] as? String
+        if rating == nil {
+            print("Could not parse form_rating from: \(analysisResult)")
+        }
+        return rating ?? "Unknown"
     }
     
     var confidenceScore: Double {
-        return parsedAnalysisResult?["confidence_score"] as? Double ?? 0.0
+        let score = parsedAnalysisResult?["confidence_score"] as? Double
+        if score == nil {
+            print("Could not parse confidence_score from: \(analysisResult)")
+        }
+        return score ?? 0.0
     }
 } 
