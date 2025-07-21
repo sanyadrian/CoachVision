@@ -24,6 +24,9 @@ struct VideoAnalysisView: View {
     @State private var selectedViewMode = 0
     @State private var showingDeleteAlert = false
     @State private var analysisToDelete: VideoAnalysis?
+    @State private var isViewReady = false
+    @State private var isAnalyzing = false
+    @State private var showUploadButtons = true
     
     var body: some View {
         NavigationView {
@@ -113,6 +116,8 @@ struct VideoAnalysisView: View {
                                 if let videoURL = url {
                                     recordedVideoURL = videoURL
                                     uploadedVideoURL = videoURL
+                                    // Reset upload buttons when video is uploaded
+                                    showUploadButtons = true
                                 }
                             }
                         }
@@ -211,6 +216,8 @@ struct VideoAnalysisView: View {
                     } else {
                         cameraManager.startRecording()
                         isRecording = true
+                        // Reset upload buttons when starting new recording
+                        showUploadButtons = true
                     }
                 }) {
                     ZStack {
@@ -232,17 +239,19 @@ struct VideoAnalysisView: View {
                 .disabled(!cameraManager.isCameraAvailable)
                 
                 // Upload Button
-                Button(action: {
-                    showingImagePicker = true
-                }) {
-                    VStack(spacing: 8) {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 30))
-                            .foregroundColor(.white)
-                        
-                        Text("Upload")
-                            .font(.caption)
-                            .foregroundColor(.white)
+                if showUploadButtons || recordedVideoURL == nil {
+                    Button(action: {
+                        showingImagePicker = true
+                    }) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.system(size: 30))
+                                .foregroundColor(.white)
+                            
+                            Text("Upload")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                        }
                     }
                 }
             }
@@ -253,7 +262,7 @@ struct VideoAnalysisView: View {
                     .font(.headline)
                     .foregroundColor(.red)
                     .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isRecording)
-            } else if let videoURL = recordedVideoURL {
+            } else if let videoURL = recordedVideoURL, !isAnalyzing {
                 VStack(spacing: 12) {
                     Text("Video Recorded!")
                         .font(.headline)
@@ -280,10 +289,27 @@ struct VideoAnalysisView: View {
                         selectedViewMode = 1
                         showingExerciseTypePicker = true
                     }
-                    .foregroundColor(.orange)
+                    .foregroundColor(isAnalyzing ? .gray : .orange)
                     .font(.subheadline)
                     .padding(.top, 8)
+                    .disabled(isAnalyzing)
+                    .overlay(
+                        Group {
+                            if isAnalyzing {
+                                HStack {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .gray))
+                                    Text("Analyzing...")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                    )
                 }
+                .opacity(isAnalyzing ? 0.3 : 1.0)
+                .disabled(isAnalyzing)
             }
             
             Spacer()
@@ -292,7 +318,23 @@ struct VideoAnalysisView: View {
     
     private var analysesView: some View {
         VStack(spacing: 16) {
-            if isLoadingAnalyses {
+            if isAnalyzing {
+                VStack(spacing: 20) {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .progressViewStyle(CircularProgressViewStyle(tint: .orange))
+                    
+                    Text("Analyzing Video...")
+                        .font(.headline)
+                        .foregroundColor(.orange)
+                    
+                    Text("Please wait while AI analyzes your form")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if isLoadingAnalyses {
                 ProgressView("Loading analyses...")
                     .foregroundColor(.white)
             } else if videoAnalyses.isEmpty {
@@ -420,7 +462,13 @@ struct VideoAnalysisView: View {
         }
         
         isUploading = true
+        isAnalyzing = true
+        showUploadButtons = false
         uploadProgress = 0.0
+        
+        // Clear recorded video to prevent re-uploading
+        recordedVideoURL = nil
+        uploadedVideoURL = nil
         
         // Start progress simulation
         DispatchQueue.main.async {
@@ -504,6 +552,11 @@ struct VideoAnalysisView: View {
                         selectedViewMode = 1
                         fetchVideoAnalyses()
                         
+                        // Keep analyzing state for a moment to show completion
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            isAnalyzing = false
+                        }
+                        
                         // Dismiss the exercise type picker
                         showingExerciseTypePicker = false
                     } else {
@@ -511,6 +564,10 @@ struct VideoAnalysisView: View {
                         if let data = data {
                             print("Error response: \(String(data: data, encoding: .utf8) ?? "")")
                         }
+                        
+                        // Restore upload buttons on error
+                        isAnalyzing = false
+                        showUploadButtons = true
                     }
                 }
             }
@@ -877,7 +934,7 @@ struct VideoAnalysisDetailView: View {
                 } else {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
-                            // Header
+                            // Header - Always show this
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(analysis.exerciseTypeDisplay)
                                     .font(.largeTitle)
@@ -888,6 +945,40 @@ struct VideoAnalysisDetailView: View {
                                     .font(.subheadline)
                                     .foregroundColor(.gray)
                             }
+                            
+                            // Basic Analysis Info - Always show this
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Analysis Summary")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Exercise")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                        Text(analysis.exerciseTypeDisplay)
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing, spacing: 4) {
+                                        Text("Analysis Date")
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                        Text(analysis.formattedDate)
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                            .cornerRadius(12)
                             
                             // Form Rating Card
                             VStack(alignment: .leading, spacing: 16) {
@@ -1123,19 +1214,9 @@ struct VideoAnalysisDetailView: View {
             print("Analysis Result: \(analysis.analysisResult)")
             print("Parsed Result: \(analysis.parsedAnalysisResult ?? [:])")
             
-            // Check if we have valid data
-            let hasValidData = analysis.parsedAnalysisResult != nil || !analysis.feedback.isEmpty
-            
-            if hasValidData {
-                // Small delay to ensure view is properly loaded
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isViewReady = true
-                }
-            } else {
-                // If no valid data, show error state
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    isViewReady = true
-                }
+            // Always show the view after a short delay to prevent black screen
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                isViewReady = true
             }
         }
         .navigationBarTitleDisplayMode(.inline)
