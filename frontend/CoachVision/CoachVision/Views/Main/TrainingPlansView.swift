@@ -1117,27 +1117,6 @@ struct NutritionSection: View {
     }
 }
 
-struct NutritionCard: View {
-    let title: String
-    let content: String
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-            
-            Text(content)
-                .font(.caption)
-                .foregroundColor(.gray)
-        }
-        .padding()
-        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-        .cornerRadius(12)
-    }
-}
-
 struct RecommendationsSection: View {
     let recommendations: [String: Any]
     
