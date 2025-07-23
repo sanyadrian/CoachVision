@@ -64,12 +64,49 @@ struct DashboardView: View {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let workouts = json["workouts"] as? [String: Any] else { return nil }
         let day = selectedDayName
+        print("Looking for workout for day: \(day)")
+        print("Available workout keys: \(workouts.keys)")
         if let dict = workouts[day] as? [String: Any], let workout = dict["workout"] as? String {
             return workout
         } else if let workout = workouts[day] as? String {
             return workout
         }
         return nil
+    }
+
+    func fetchVideoAnalyses() {
+        guard let token = authManager.authToken,
+              let userId = authManager.currentUser?.id else {
+            print("No authentication available")
+            return
+        }
+
+        let url = URL(string: "http://192.168.4.27:8000/videos/user/\(userId)")!
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Error fetching video analyses: \(error)")
+                    return
+                }
+
+                if let httpResponse = response as? HTTPURLResponse,
+                   httpResponse.statusCode == 200,
+                   let data = data {
+                    do {
+                        let analyses = try JSONDecoder().decode([VideoAnalysis].self, from: data)
+                        self.videoAnalyses = analyses
+                        print("Fetched \(analyses.count) video analyses")
+                    } catch {
+                        print("Error decoding video analyses: \(error)")
+                    }
+                } else {
+                    print("Failed to fetch video analyses")
+                }
+            }
+        }.resume()
     }
 
     var body: some View {
@@ -92,6 +129,9 @@ struct DashboardView: View {
                         let isSelected = idx == selectedDayIndex
                         let day = Calendar.current.component(.day, from: date)
                         let month = DateFormatter().monthSymbols[Calendar.current.component(.month, from: date) - 1].prefix(3)
+                        let plan = currentPlan
+                        let dayName = shortWeekday(date: date).lowercased()
+                        let isCompleted = plan?.completedDays.contains(dayName) ?? false
                         VStack {
                             Text(shortWeekday(date: date))
                                 .font(.caption)
@@ -103,6 +143,11 @@ struct DashboardView: View {
                             Text(month)
                                 .font(.caption2)
                                 .foregroundColor(.gray)
+                            if isCompleted {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                    .font(.caption)
+                            }
                         }
                         .padding(10)
                         .background(isSelected ? Color.blue : Color.clear)
@@ -244,6 +289,7 @@ struct DashboardView: View {
                     await planManager.fetchPlans(userId: userId)
                 }
             }
+            fetchVideoAnalyses()
         }
     }
 }
