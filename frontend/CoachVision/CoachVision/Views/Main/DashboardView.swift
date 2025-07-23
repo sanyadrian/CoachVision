@@ -8,10 +8,19 @@ struct DashboardView: View {
 
     // Dummy week dates for now
     var weekDates: [Date] {
-        let today = Date()
+        guard let plan = currentPlan else { return [] }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
+        guard let startDate = formatter.date(from: plan.createdAt) else { return [] }
+        // Find the most recent Monday before or on startDate
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: startDate)
+        // In Calendar, Sunday = 1, Monday = 2, ..., Saturday = 7
+        let daysToMonday = (weekday == 2) ? 0 : ((weekday == 1) ? 6 : weekday - 2)
+        guard let monday = calendar.date(byAdding: .day, value: -daysToMonday, to: startDate) else { return [] }
         var dates: [Date] = []
         for i in 0..<7 {
-            if let date = Calendar.current.date(byAdding: .day, value: i, to: today) {
+            if let date = calendar.date(byAdding: .day, value: i, to: monday) {
                 dates.append(date)
             }
         }
@@ -43,6 +52,26 @@ struct DashboardView: View {
         return formatter.string(from: date).lowercased()
     }
 
+    // Computed property for current plan
+    var currentPlan: TrainingPlan? {
+        planManager.plans.first(where: { $0.isActive }) ?? planManager.plans.first
+    }
+
+    // Helper to parse workout for selected day from plan content
+    func workoutForSelectedDay(plan: TrainingPlan?) -> String? {
+        guard let plan = plan else { return nil }
+        guard let data = plan.content.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let workouts = json["workouts"] as? [String: Any] else { return nil }
+        let day = selectedDayName
+        if let dict = workouts[day] as? [String: Any], let workout = dict["workout"] as? String {
+            return workout
+        } else if let workout = workouts[day] as? String {
+            return workout
+        }
+        return nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Header
@@ -60,8 +89,9 @@ struct DashboardView: View {
                 HStack(spacing: 12) {
                     ForEach(weekDates.indices, id: \.self) { idx in
                         let date = weekDates[idx]
-                        let day = Calendar.current.component(.day, from: date)
                         let isSelected = idx == selectedDayIndex
+                        let day = Calendar.current.component(.day, from: date)
+                        let month = DateFormatter().monthSymbols[Calendar.current.component(.month, from: date) - 1].prefix(3)
                         VStack {
                             Text(shortWeekday(date: date))
                                 .font(.caption)
@@ -70,6 +100,9 @@ struct DashboardView: View {
                                 .font(.headline)
                                 .fontWeight(isSelected ? .bold : .regular)
                                 .foregroundColor(isSelected ? .white : .gray)
+                            Text(month)
+                                .font(.caption2)
+                                .foregroundColor(.gray)
                         }
                         .padding(10)
                         .background(isSelected ? Color.blue : Color.clear)
@@ -80,29 +113,39 @@ struct DashboardView: View {
                 .padding(.horizontal, 20)
             }
 
-            // Training Plan Progress Card (placeholder)
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Training Plan Progress")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                ProgressView(value: 0.5)
-                    .accentColor(.green)
-                Text("50% complete")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                Text("Workout for Monday:")
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                Text("Pushups, Squats, Plank")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+            // Training Plan Progress Card (dynamic)
+            if let plan = currentPlan {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Training Plan Progress")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                    ProgressView(value: plan.progress)
+                        .accentColor(.green)
+                    Text("\(Int(plan.progress * 100))% complete")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    if let workout = workoutForSelectedDay(plan: plan) {
+                        Text("Workout for \(selectedDayName.capitalized):")
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                        Text(workout)
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    } else {
+                        Text("No workout scheduled for \(selectedDayName.capitalized)")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding()
+                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                .cornerRadius(16)
+                .padding(.horizontal, 20)
             }
-            .padding()
-            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-            .cornerRadius(16)
-            .padding(.horizontal, 20)
 
-            // Video Analysis Progress Card (placeholder)
+            // Video Analysis Progress Card (dynamic)
+            let videoCount = videoAnalyses.count
+            let avgFormScore = videoAnalyses.isEmpty ? 0 : Int(videoAnalyses.map { $0.confidenceScore }.reduce(0, +) / Double(videoAnalyses.count))
             VStack(alignment: .leading, spacing: 12) {
                 Text("Video Analysis Progress")
                     .font(.headline)
@@ -112,7 +155,7 @@ struct DashboardView: View {
                         Text("Videos analyzed")
                             .font(.caption)
                             .foregroundColor(.gray)
-                        Text("5")
+                        Text("\(videoCount)")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -122,20 +165,10 @@ struct DashboardView: View {
                         Text("Avg. Form Score")
                             .font(.caption)
                             .foregroundColor(.gray)
-                        Text("82")
+                        Text("\(avgFormScore)")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
-                    }
-                    Spacer()
-                    VStack(alignment: .leading) {
-                        Text("Improvement")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        Text("+5%")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.green)
                     }
                 }
                 // Dummy trend bar
@@ -198,6 +231,20 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 20)
         .background(Color.black)
+        .onAppear {
+            print("Plans loaded: \(planManager.plans)")
+            if let plan = currentPlan {
+                print("Current plan: \(plan)")
+            } else {
+                print("No current plan found")
+            }
+            // Fetch plans if not already loaded
+            if let userId = authManager.currentUser?.id, planManager.plans.isEmpty {
+                Task {
+                    await planManager.fetchPlans(userId: userId)
+                }
+            }
+        }
     }
 }
 
