@@ -96,6 +96,17 @@ struct DashboardView: View {
                                 .padding(.horizontal, 20)
                             }
                         }
+                        // DEBUG: Show loaded plans and their active status
+                        if !planManager.plans.isEmpty {
+                            VStack(alignment: .leading) {
+                                Text("DEBUG: Plans loaded:")
+                                    .foregroundColor(.yellow)
+                                ForEach(planManager.plans, id: \.id) { plan in
+                                    Text("Plan: \(plan.name), Active: \(plan.isActive ? "Yes" : "No")")
+                                        .foregroundColor(.yellow)
+                                }
+                            }
+                        }
                         // Training Plan Progress Card
                         TrainingPlanProgressCard(plan: currentPlan, selectedDay: selectedDayName)
                         // Video Analysis Progress Card (dummy)
@@ -107,6 +118,12 @@ struct DashboardView: View {
                 }
             }
             .navigationBarHidden(true)
+            .onAppear {
+                print("Loaded plans: \(planManager.plans)")
+                if let plan = planManager.plans.first {
+                    print("First plan isActive: \(plan.isActive)")
+                }
+            }
         }
     }
     // Helper for short weekday
@@ -121,6 +138,29 @@ struct DashboardView: View {
 struct TrainingPlanProgressCard: View {
     let plan: TrainingPlan?
     let selectedDay: String
+    
+    // Helper to parse plan content JSON for workouts
+    func parseWorkouts() -> [String: String] {
+        guard let plan = plan else { return [:] }
+        var cleanContent = plan.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleanContent.hasPrefix("```json") { cleanContent = String(cleanContent.dropFirst(7)) }
+        if cleanContent.hasPrefix("```") { cleanContent = String(cleanContent.dropFirst(3)) }
+        if cleanContent.hasSuffix("```") { cleanContent = String(cleanContent.dropLast(3)) }
+        cleanContent = cleanContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = cleanContent.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let workouts = json["workouts"] as? [String: Any] else { return [:] }
+        var result: [String: String] = [:]
+        for (day, value) in workouts {
+            if let dict = value as? [String: Any], let workout = dict["workout"] as? String {
+                result[day.lowercased()] = workout
+            } else if let workout = value as? String {
+                result[day.lowercased()] = workout
+            }
+        }
+        return result
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Training Plan Progress")
@@ -129,24 +169,38 @@ struct TrainingPlanProgressCard: View {
             if let plan = plan {
                 ProgressView(value: plan.progress)
                     .accentColor(.green)
-                HStack {
-                    ForEach(["monday","tuesday","wednesday","thursday","friday","saturday","sunday"], id: \.self) { day in
-                        Circle()
-                            .fill(plan.completedDays.contains(day) ? Color.green : Color.gray.opacity(0.3))
-                            .frame(width: 12, height: 12)
+                // Bar chart for week
+                let workouts = parseWorkouts()
+                let dayOrder = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"]
+                HStack(spacing: 8) {
+                    ForEach(dayOrder, id: \.self) { day in
+                        VStack {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(plan.completedDays.contains(day) ? Color.green : Color.gray.opacity(0.3))
+                                .frame(width: 18, height: 40)
+                            Text(day.prefix(3).capitalized)
+                                .font(.caption2)
+                                .foregroundColor(.gray)
+                        }
                     }
                 }
                 .padding(.top, 4)
                 Text("\(Int(plan.progress * 100))% complete")
                     .font(.caption)
                     .foregroundColor(.gray)
-                // Show selected day's workout (placeholder)
-                Text("Workout for \(selectedDay.capitalized):")
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-                Text("- Example workout details here")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+                // Show selected day's workout
+                if let workout = workouts[selectedDay] {
+                    Text("Workout for \(selectedDay.capitalized):")
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                    Text(workout)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                } else {
+                    Text("No workout scheduled for \(selectedDay.capitalized)")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
             } else {
                 Text("No active plan found.")
                     .foregroundColor(.gray)

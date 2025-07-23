@@ -1365,3 +1365,4 @@ struct VideoAnalysisDetailView: View {
 #Preview {
     VideoAnalysisView()
 } 
+ 
