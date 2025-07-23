@@ -63,11 +63,25 @@ struct DashboardView: View {
         guard let data = plan.content.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let workouts = json["workouts"] as? [String: Any] else { return nil }
-        let day = selectedDayName
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        let day = formatter.string(from: weekDates[selectedDayIndex]).lowercased()
         print("Looking for workout for day: \(day)")
         print("Available workout keys: \(workouts.keys)")
-        if let dict = workouts[day] as? [String: Any], let workout = dict["workout"] as? String {
-            return workout
+        print("Value for \(day): \(String(describing: workouts[day]))")
+        if let dict = workouts[day] as? [String: Any] {
+            if let exercises = dict["exercises"] as? [String] {
+                let workoutType = dict["workout_type"] as? String
+                let exercisesList = exercises.joined(separator: "\n")
+                if let workoutType = workoutType {
+                    return "\(workoutType):\n\(exercisesList)"
+                } else {
+                    return exercisesList
+                }
+            }
+            if let workout = dict["workout"] as? String {
+                return workout
+            }
         } else if let workout = workouts[day] as? String {
             return workout
         }
@@ -130,8 +144,12 @@ struct DashboardView: View {
                         let day = Calendar.current.component(.day, from: date)
                         let month = DateFormatter().monthSymbols[Calendar.current.component(.month, from: date) - 1].prefix(3)
                         let plan = currentPlan
-                        let dayName = shortWeekday(date: date).lowercased()
-                        let isCompleted = plan?.completedDays.contains(dayName) ?? false
+                        let fullDayName: String = {
+                            let formatter = DateFormatter()
+                            formatter.dateFormat = "EEEE"
+                            return formatter.string(from: date).lowercased()
+                        }()
+                        let isCompleted = plan?.completedDays.contains(fullDayName) ?? false
                         VStack {
                             Text(shortWeekday(date: date))
                                 .font(.caption)
@@ -176,6 +194,9 @@ struct DashboardView: View {
                         Text(workout)
                             .font(.caption)
                             .foregroundColor(.gray)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .multilineTextAlignment(.leading)
                     } else {
                         Text("No workout scheduled for \(selectedDayName.capitalized)")
                             .font(.caption)
