@@ -3,8 +3,10 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @EnvironmentObject var planManager: TrainingPlanManager
+    @EnvironmentObject var mealManager: MealManager
     @State private var videoAnalyses: [VideoAnalysis] = []
     @State private var selectedDayIndex: Int = 0
+    @State private var showMealSheet: Bool = false
 
     // Dummy week dates for now
     var weekDates: [Date] {
@@ -257,40 +259,63 @@ struct DashboardView: View {
                 Text("Nutrition")
                     .font(.headline)
                     .foregroundColor(.white)
-                if let nutrition = dummyNutrition[selectedDayName] {
-                    HStack {
-                        // Placeholder for pie chart
-                        Circle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 80, height: 80)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Calories: \(nutrition.cal)")
+                // Use real calories from mealManager
+                let selectedDate = weekDates.indices.contains(selectedDayIndex) ? weekDates[selectedDayIndex] : Date()
+                let totalCalories = mealManager.totalCalories(for: selectedDate)
+                HStack {
+                    // Placeholder for pie chart
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 80, height: 80)
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Calories is tappable
+                        Button(action: { showMealSheet = true }) {
+                            Text("Calories: \(totalCalories)")
                                 .font(.subheadline)
                                 .foregroundColor(.white)
-                            Text("Protein: \(nutrition.protein)g")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Text("Carbs: \(nutrition.carbs)g")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Text("Fats: \(nutrition.fats)g")
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                                .underline()
                         }
+                        // Dummy macros for now
+                        Text("Protein: 100g")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Text("Carbs: 230g")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Text("Fats: 60g")
+                            .font(.caption)
+                            .foregroundColor(.gray)
                     }
-                    .padding(.bottom, 4)
-                    Text("Coming soon: Scan your meal to auto-track nutrition!")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                } else {
-                    Text("No nutrition data for this day.")
-                        .foregroundColor(.gray)
                 }
+                .padding(.bottom, 4)
+                Text("Coming soon: Scan your meal to auto-track nutrition!")
+                    .font(.caption2)
+                    .foregroundColor(.orange)
             }
             .padding()
             .background(Color(red: 0.1, green: 0.1, blue: 0.15))
             .cornerRadius(16)
             .padding(.horizontal, 20)
+            .sheet(isPresented: $showMealSheet) {
+                // Placeholder for meal details sheet
+                VStack {
+                    Text("Meals for the day")
+                        .font(.title2)
+                        .padding()
+                    List(mealManager.meals(for: weekDates[selectedDayIndex])) { meal in
+                        VStack(alignment: .leading) {
+                            Text(meal.name)
+                                .font(.headline)
+                            Text("Calories: \(meal.calories)")
+                                .font(.caption)
+                            Text("Protein: \(meal.protein)g, Carbs: \(meal.carbs)g, Fats: \(meal.fats)g")
+                                .font(.caption2)
+                        }
+                    }
+                    Button("Close") { showMealSheet = false }
+                        .padding()
+                }
+            }
 
             Spacer()
         }
@@ -311,6 +336,19 @@ struct DashboardView: View {
                 }
             }
             fetchVideoAnalyses()
+            // Fetch meals for the selected day
+            Task {
+                if weekDates.indices.contains(selectedDayIndex) {
+                    await mealManager.fetchMeals(for: weekDates[selectedDayIndex])
+                }
+            }
+        }
+        .onChange(of: selectedDayIndex) { newValue in
+            Task {
+                if weekDates.indices.contains(newValue) {
+                    await mealManager.fetchMeals(for: weekDates[newValue])
+                }
+            }
         }
     }
 }

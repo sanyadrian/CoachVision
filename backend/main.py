@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from database import create_db_and_tables
-from routers import auth, user, planner, video
+from routers import auth, user, planner, video, meal
 
 app = FastAPI(
     title="CoachVision API",
@@ -34,6 +34,7 @@ app.include_router(auth.router, prefix="/auth", tags=["authentication"])
 app.include_router(user.router, prefix="/users", tags=["users"])
 app.include_router(planner.router, prefix="/plans", tags=["training plans"])
 app.include_router(video.router, prefix="/videos", tags=["video analysis"])
+app.include_router(meal.router, prefix="/meals", tags=["meals"])
 
 @app.get("/")
 async def root():

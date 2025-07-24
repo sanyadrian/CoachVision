@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 class FitnessGoal(str, Enum):
@@ -45,6 +45,16 @@ class VideoAnalysis(SQLModel, table=True):
     analysis_result: str  # JSON string with analysis data
     feedback: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class Meal(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: int = Field(foreign_key="userprofile.id")
+    name: str = Field(max_length=100)
+    calories: int
+    protein: int
+    carbs: int
+    fats: int
+    date: date
 
 # Pydantic models for API requests/responses
 class UserProfileCreate(SQLModel):
@@ -95,3 +105,22 @@ class VideoAnalysisResponse(SQLModel):
     analysis_result: str
     feedback: str
     created_at: datetime 
+
+class MealCreate(SQLModel):
+    user_id: int
+    name: str
+    calories: int
+    protein: int
+    carbs: int
+    fats: int
+    date: date
+
+class MealResponse(SQLModel):
+    id: int
+    user_id: int
+    name: str
+    calories: int
+    protein: int
+    carbs: int
+    fats: int
+    date: date 
