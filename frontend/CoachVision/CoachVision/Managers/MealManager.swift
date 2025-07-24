@@ -53,8 +53,8 @@ class MealManager: ObservableObject {
     }
     
     func addMeal(_ meal: Meal, completion: @escaping (Bool) -> Void) {
-        guard let token = authToken else {
-            print("No auth token for adding meal")
+        guard let token = authToken, let userId = userId else {
+            print("No auth token or user ID for adding meal")
             completion(false)
             return
         }
@@ -63,10 +63,17 @@ class MealManager: ObservableObject {
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let mealDict: [String: Any] = [
+            "user_id": userId,
+            "name": meal.name,
+            "calories": meal.calories,
+            "protein": meal.protein,
+            "carbs": meal.carbs,
+            "fats": meal.fats,
+            "date": meal.date
+        ]
         do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(meal)
+            let data = try JSONSerialization.data(withJSONObject: mealDict)
             request.httpBody = data
         } catch {
             print("Failed to encode meal: \(error)")
@@ -85,9 +92,16 @@ class MealManager: ObservableObject {
                     completion(false)
                     return
                 }
-                if let data = data, let newMeal = try? JSONDecoder().decode(Meal.self, from: data) {
-                    self.meals.append(newMeal)
-                    completion(true)
+                if let data = data {
+                    print("Meal add response: \(String(data: data, encoding: .utf8) ?? "nil")")
+                    do {
+                        let newMeal = try JSONDecoder().decode(Meal.self, from: data)
+                        self.meals.append(newMeal)
+                        completion(true)
+                    } catch {
+                        print("Failed to decode meal from response: \(error)")
+                        completion(false)
+                    }
                 } else {
                     completion(false)
                 }
@@ -96,8 +110,10 @@ class MealManager: ObservableObject {
     }
     
     func meals(for date: Date) -> [Meal] {
-        let calendar = Calendar.current
-        return meals.filter { calendar.isDate($0.date, inSameDayAs: date) }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateString = formatter.string(from: date)
+        return meals.filter { $0.date == dateString }
     }
     
     func totalCalories(for date: Date) -> Int {

@@ -7,6 +7,12 @@ struct DashboardView: View {
     @State private var videoAnalyses: [VideoAnalysis] = []
     @State private var selectedDayIndex: Int = 0
     @State private var showMealSheet: Bool = false
+    @State private var newMealName: String = ""
+    @State private var newMealCalories: String = ""
+    @State private var newMealProtein: String = ""
+    @State private var newMealCarbs: String = ""
+    @State private var newMealFats: String = ""
+    @State private var mealAddError: String? = nil
 
     // Dummy week dates for now
     var weekDates: [Date] {
@@ -297,24 +303,46 @@ struct DashboardView: View {
             .cornerRadius(16)
             .padding(.horizontal, 20)
             .sheet(isPresented: $showMealSheet) {
-                // Placeholder for meal details sheet
-                VStack {
-                    Text("Meals for the day")
-                        .font(.title2)
-                        .padding()
-                    List(mealManager.meals(for: weekDates[selectedDayIndex])) { meal in
-                        VStack(alignment: .leading) {
-                            Text(meal.name)
-                                .font(.headline)
-                            Text("Calories: \(meal.calories)")
-                                .font(.caption)
-                            Text("Protein: \(meal.protein)g, Carbs: \(meal.carbs)g, Fats: \(meal.fats)g")
-                                .font(.caption2)
+                MealSheetView(
+                    meals: mealManager.meals(for: weekDates[selectedDayIndex]),
+                    selectedDate: weekDates[selectedDayIndex],
+                    showMealSheet: $showMealSheet,
+                    newMealName: $newMealName,
+                    newMealCalories: $newMealCalories,
+                    newMealProtein: $newMealProtein,
+                    newMealCarbs: $newMealCarbs,
+                    newMealFats: $newMealFats,
+                    mealAddError: $mealAddError,
+                    addMealAction: {
+                        guard let calories = Int(newMealCalories),
+                              let protein = Int(newMealProtein),
+                              let carbs = Int(newMealCarbs),
+                              let fats = Int(newMealFats),
+                              !newMealName.isEmpty else {
+                            mealAddError = "Please fill all fields with valid values."
+                            return
+                        }
+                        let selectedDate = weekDates.indices.contains(selectedDayIndex) ? weekDates[selectedDayIndex] : Date()
+                        let formatter = DateFormatter()
+                        formatter.dateFormat = "yyyy-MM-dd"
+                        let dateString = formatter.string(from: selectedDate)
+                        let meal = Meal(id: 0, name: newMealName, calories: calories, protein: protein, carbs: carbs, fats: fats, date: dateString)
+                        mealManager.addMeal(meal) { success in
+                            if success {
+                                newMealName = ""
+                                newMealCalories = ""
+                                newMealProtein = ""
+                                newMealCarbs = ""
+                                newMealFats = ""
+                                mealAddError = nil
+                                // Refresh meals
+                                Task { await mealManager.fetchMeals(for: selectedDate) }
+                            } else {
+                                mealAddError = "Failed to add meal."
+                            }
                         }
                     }
-                    Button("Close") { showMealSheet = false }
-                        .padding()
-                }
+                )
             }
 
             Spacer()
@@ -349,6 +377,67 @@ struct DashboardView: View {
                     await mealManager.fetchMeals(for: weekDates[newValue])
                 }
             }
+        }
+    }
+}
+
+struct MealSheetView: View {
+    let meals: [Meal]
+    let selectedDate: Date
+    @Binding var showMealSheet: Bool
+    @Binding var newMealName: String
+    @Binding var newMealCalories: String
+    @Binding var newMealProtein: String
+    @Binding var newMealCarbs: String
+    @Binding var newMealFats: String
+    @Binding var mealAddError: String?
+    var addMealAction: () -> Void
+
+    var body: some View {
+        VStack {
+            Text("Meals for the day")
+                .font(.title2)
+                .padding()
+            List(meals) { meal in
+                VStack(alignment: .leading) {
+                    Text(meal.name)
+                        .font(.headline)
+                    Text("Calories: \(meal.calories)")
+                        .font(.caption)
+                    Text("Protein: \(meal.protein)g, Carbs: \(meal.carbs)g, Fats: \(meal.fats)g")
+                        .font(.caption2)
+                }
+            }
+            Divider().padding(.vertical, 8)
+            Text("Add Meal Manually")
+                .font(.headline)
+            TextField("Meal name", text: $newMealName)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding(.horizontal)
+            HStack {
+                TextField("Calories", text: $newMealCalories)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                TextField("Protein", text: $newMealProtein)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                TextField("Carbs", text: $newMealCarbs)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                TextField("Fats", text: $newMealFats)
+                    .keyboardType(.numberPad)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            }
+            .padding(.horizontal)
+            if let error = mealAddError {
+                Text(error)
+                    .foregroundColor(.red)
+                    .font(.caption)
+            }
+            Button("Add Meal", action: addMealAction)
+                .padding()
+            Button("Close") { showMealSheet = false }
+                .padding()
         }
     }
 }
