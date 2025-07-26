@@ -2,10 +2,16 @@
 
 struct MealScanningView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var mealManager: MealManager
+    @StateObject private var foodRecognitionService = FoodRecognitionService()
+    
     @State private var selectedImage: UIImage?
     @State private var showingImagePicker = false
     @State private var showingCamera = false
     @State private var showingActionSheet = false
+    @State private var showingLiveCamera = false
+    @State private var recognizedFood: FoodItem?
+    @State private var showingFoodDetails = false
     
     let selectedDate: Date
     
@@ -91,6 +97,28 @@ struct MealScanningView: View {
                     }
                 }
                 
+                // Loading indicator
+                if foodRecognitionService.isAnalyzing {
+                    VStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Analyzing food...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                }
+                
+                // Error message
+                if let errorMessage = foodRecognitionService.errorMessage {
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.red)
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                }
+                
                 Spacer()
             }
             .padding()
@@ -99,9 +127,12 @@ struct MealScanningView: View {
         }
         .actionSheet(isPresented: $showingActionSheet) {
             ActionSheet(
-                title: Text("Select Image Source"),
+                title: Text("Select Scanning Method"),
                 buttons: [
-                    .default(Text("Camera")) {
+                    .default(Text("Live Camera Scan")) {
+                        showingLiveCamera = true
+                    },
+                    .default(Text("Take Photo")) {
                         showingCamera = true
                     },
                     .default(Text("Photo Library")) {
@@ -116,6 +147,26 @@ struct MealScanningView: View {
         }
         .sheet(isPresented: $showingCamera) {
             PhotoPicker(selectedImage: $selectedImage, sourceType: .camera)
+        }
+        .sheet(isPresented: $showingLiveCamera) {
+            LiveCameraView(selectedDate: selectedDate)
+        }
+        .onChange(of: selectedImage) { newImage in
+            if let image = newImage {
+                scanFood(image: image)
+            }
+        }
+    }
+    
+    private func scanFood(image: UIImage) {
+        foodRecognitionService.recognizeFood(from: image) { result in
+            switch result {
+            case .success(let foodItem):
+                recognizedFood = foodItem
+                showingFoodDetails = true
+            case .failure(let error):
+                foodRecognitionService.errorMessage = error.localizedDescription
+            }
         }
     }
 }
