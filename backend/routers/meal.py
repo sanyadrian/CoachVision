@@ -9,7 +9,7 @@ router = APIRouter()
 
 @router.post("", response_model=MealResponse)
 def create_meal(meal: MealCreate, session: Session = Depends(get_session)):
-    db_meal = Meal.from_orm(meal)
+    db_meal = Meal(**meal.dict())
     session.add(db_meal)
     session.commit()
     session.refresh(db_meal)
@@ -20,5 +20,6 @@ def get_meals_for_user(user_id: int, date: Optional[date] = Query(None), session
     query = select(Meal).where(Meal.user_id == user_id)
     if date:
         query = query.where(Meal.date == date)
-    meals = session.exec(query).all()
+    result = session.execute(query)
+    meals = result.scalars().all()
     return meals 

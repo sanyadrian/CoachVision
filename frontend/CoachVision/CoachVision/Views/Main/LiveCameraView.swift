@@ -120,14 +120,21 @@ struct LiveCameraView: View {
                     food: recognizedFood,
                     selectedDate: selectedDate,
                     onAddMeal: { meal in
+                        print("🔍 LiveCameraView: Adding meal with token: \(mealManager.authToken != nil), userId: \(mealManager.userId != nil)")
                         mealManager.addMeal(meal) { success in
                             if success {
                                 dismiss()
+                            } else {
+                                print("❌ LiveCameraView: Failed to add meal")
                             }
                         }
                     }
                 )
+                .environmentObject(mealManager)
             }
+        }
+        .onAppear {
+            print("🔍 LiveCameraView: onAppear - token: \(mealManager.authToken != nil), userId: \(mealManager.userId)")
         }
     }
     
