@@ -167,58 +167,87 @@ struct LiveCameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         print("🔍 LiveCameraPreviewView: makeUIView called")
         let view = UIView()
-        view.backgroundColor = .black
+        view.backgroundColor = .red // Changed to red to test if view is visible
         
         let captureSession = AVCaptureSession()
         captureSession.sessionPreset = .high
         print("🔍 LiveCameraPreviewView: Created AVCaptureSession")
         
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            print("❌ LiveCameraPreviewView: Camera not available")
-            context.coordinator.onError?("Camera not available")
-            return view
+        // Configure session on background thread
+        DispatchQueue.global(qos: .userInitiated).async {
+            context.coordinator.isConfiguring = true
+            captureSession.beginConfiguration()
+            print("🔍 LiveCameraPreviewView: Session configuration started")
+        
+            guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+                print("❌ LiveCameraPreviewView: Camera not available")
+                DispatchQueue.main.async {
+                    context.coordinator.onError?("Camera not available")
+                }
+                return
+            }
+            print("✅ LiveCameraPreviewView: Camera device found")
+            
+            guard let input = try? AVCaptureDeviceInput(device: camera) else {
+                print("❌ LiveCameraPreviewView: Failed to create camera input")
+                DispatchQueue.main.async {
+                    context.coordinator.onError?("Failed to access camera")
+                }
+                return
+            }
+            print("✅ LiveCameraPreviewView: Camera input created successfully")
+            
+            if captureSession.canAddInput(input) {
+                captureSession.addInput(input)
+                print("✅ LiveCameraPreviewView: Added camera input to session")
+            } else {
+                print("❌ LiveCameraPreviewView: Failed to add camera input to session")
+                return
+            }
+            
+            let videoOutput = AVCaptureVideoDataOutput()
+            videoOutput.setSampleBufferDelegate(context.coordinator, queue: DispatchQueue.global(qos: .userInteractive))
+            videoOutput.alwaysDiscardsLateVideoFrames = true
+            print("✅ LiveCameraPreviewView: Created video output")
+            
+            if captureSession.canAddOutput(videoOutput) {
+                captureSession.addOutput(videoOutput)
+                print("✅ LiveCameraPreviewView: Added video output to session")
+            } else {
+                print("❌ LiveCameraPreviewView: Failed to add video output to session")
+                return
+            }
+            
+            captureSession.commitConfiguration()
+            print("✅ LiveCameraPreviewView: Session configuration committed")
+            
+            // Start the session
+            captureSession.startRunning()
+            print("✅ LiveCameraPreviewView: Session started successfully")
+            
+            // Clear configuring flag
+            context.coordinator.isConfiguring = false
         }
-        print("✅ LiveCameraPreviewView: Camera device found")
-        
-        guard let input = try? AVCaptureDeviceInput(device: camera) else {
-            print("❌ LiveCameraPreviewView: Failed to create camera input")
-            context.coordinator.onError?("Failed to access camera")
-            return view
-        }
-        print("✅ LiveCameraPreviewView: Camera input created successfully")
-        
-        captureSession.addInput(input)
-        print("✅ LiveCameraPreviewView: Added camera input to session")
-        
-        let videoOutput = AVCaptureVideoDataOutput()
-        videoOutput.setSampleBufferDelegate(context.coordinator, queue: DispatchQueue.global(qos: .userInteractive))
-        videoOutput.alwaysDiscardsLateVideoFrames = true
-        print("✅ LiveCameraPreviewView: Created video output")
-        
-        if captureSession.canAddOutput(videoOutput) {
-            captureSession.addOutput(videoOutput)
-            print("✅ LiveCameraPreviewView: Added video output to session")
-        } else {
-            print("❌ LiveCameraPreviewView: Failed to add video output to session")
-        }
-        
-        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.videoGravity = .resizeAspectFill
-        previewLayer.frame = view.bounds
-        print("✅ LiveCameraPreviewView: Created preview layer")
-        
-        view.layer.addSublayer(previewLayer)
-        print("✅ LiveCameraPreviewView: Added preview layer to view")
         
         context.coordinator.captureSession = captureSession
         context.coordinator.onFrameCaptured = onFrameCaptured
         context.coordinator.onError = onError
-        print("✅ LiveCameraPreviewView: Setup complete")
+        print("✅ LiveCameraPreviewView: Coordinator setup complete")
         
-        // Start the session on background thread
-        DispatchQueue.global(qos: .userInitiated).async {
-            captureSession.startRunning()
-            print("✅ LiveCameraPreviewView: Session started on background thread")
+        // Setup preview layer on main thread
+        DispatchQueue.main.async {
+            let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
+            previewLayer.videoGravity = .resizeAspectFill
+            previewLayer.frame = view.bounds
+            print("✅ LiveCameraPreviewView: Created preview layer with frame: \(view.bounds)")
+            
+            view.layer.addSublayer(previewLayer)
+            print("✅ LiveCameraPreviewView: Added preview layer to view")
+            
+            // Force layout update
+            view.setNeedsLayout()
+            view.layoutIfNeeded()
+            print("✅ LiveCameraPreviewView: Setup complete")
         }
         
         return view
@@ -226,6 +255,19 @@ struct LiveCameraPreviewView: UIViewRepresentable {
     
     func updateUIView(_ uiView: UIView, context: Context) {
         print("🔍 LiveCameraPreviewView: updateUIView called, isScanning: \(isScanning)")
+        
+        // Update preview layer frame
+        if let previewLayer = uiView.layer.sublayers?.first(where: { $0 is AVCaptureVideoPreviewLayer }) as? AVCaptureVideoPreviewLayer {
+            previewLayer.frame = uiView.bounds
+            print("✅ LiveCameraPreviewView: Updated preview layer frame to: \(uiView.bounds)")
+        }
+        
+        // Don't start/stop session if it's being configured
+        guard !context.coordinator.isConfiguring else {
+            print("🔍 LiveCameraPreviewView: Skipping session control - session is being configured")
+            return
+        }
+        
         if isScanning {
             print("🔍 LiveCameraPreviewView: Starting capture session")
             DispatchQueue.global(qos: .userInitiated).async {
@@ -247,6 +289,7 @@ struct LiveCameraPreviewView: UIViewRepresentable {
         var captureSession: AVCaptureSession?
         var onFrameCaptured: ((UIImage) -> Void)?
         var onError: ((String) -> Void)?
+        var isConfiguring = false
         
         func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
             print("📸 LiveCameraPreviewView: Frame captured")
