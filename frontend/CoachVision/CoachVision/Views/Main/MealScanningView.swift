@@ -151,6 +151,24 @@ struct MealScanningView: View {
         .sheet(isPresented: $showingLiveCamera) {
             LiveCameraView(selectedDate: selectedDate)
         }
+        .sheet(isPresented: $showingFoodDetails) {
+            if let recognizedFood = recognizedFood {
+                FoodDetailsView(
+                    food: recognizedFood,
+                    selectedDate: selectedDate,
+                    onAddMeal: { meal in
+                        mealManager.addMeal(meal) { success in
+                            if success {
+                                dismiss()
+                            } else {
+                                print("❌ MealScanningView: Failed to add meal")
+                            }
+                        }
+                    }
+                )
+                .environmentObject(mealManager)
+            }
+        }
         .onChange(of: selectedImage) { newImage in
             if let image = newImage {
                 scanFood(image: image)
