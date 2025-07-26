@@ -7,6 +7,7 @@ struct DashboardView: View {
     @State private var videoAnalyses: [VideoAnalysis] = []
     @State private var selectedDayIndex: Int = 0
     @State private var showMealSheet: Bool = false
+    @State private var showMealScanning: Bool = false
     @State private var newMealName: String = ""
     @State private var newMealCalories: String = ""
     @State private var newMealProtein: String = ""
@@ -294,9 +295,20 @@ struct DashboardView: View {
                     }
                 }
                 .padding(.bottom, 4)
-                Text("Coming soon: Scan your meal to auto-track nutrition!")
-                    .font(.caption2)
-                    .foregroundColor(.orange)
+                
+                // Scan button
+                Button(action: { showMealScanning = true }) {
+                    HStack {
+                        Image(systemName: "camera.fill")
+                        Text("Scan Meal")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.blue)
+                    .cornerRadius(8)
+                }
             }
             .padding()
             .background(Color(red: 0.1, green: 0.1, blue: 0.15))
@@ -343,6 +355,9 @@ struct DashboardView: View {
                         }
                     }
                 )
+            }
+            .sheet(isPresented: $showMealScanning) {
+                MealScanningView(selectedDate: weekDates.indices.contains(selectedDayIndex) ? weekDates[selectedDayIndex] : Date())
             }
 
             Spacer()
