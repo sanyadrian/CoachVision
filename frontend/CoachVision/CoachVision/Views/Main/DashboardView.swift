@@ -167,7 +167,8 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
             // Header
             Text("Welcome back,")
                 .font(.title2)
@@ -433,7 +434,7 @@ struct DashboardView: View {
                 MealScanningView(selectedDate: weekDates.indices.contains(selectedDayIndex) ? weekDates[selectedDayIndex] : Date())
             }
 
-            Spacer()
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 20)
