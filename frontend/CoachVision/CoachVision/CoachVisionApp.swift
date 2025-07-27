@@ -23,6 +23,7 @@ struct CoachVisionApp: App {
                     await authManager.initializeUserProfile()
                     // Update mealManager with latest auth info
                     await MainActor.run {
+                        print("🔍 CoachVisionApp: Updating MealManager with token: \(authManager.authToken != nil), userId: \(authManager.currentUser?.id)")
                         mealManager.updateAuth(token: authManager.authToken, userId: authManager.currentUser?.id)
                     }
                 }

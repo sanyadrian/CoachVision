@@ -266,9 +266,13 @@ struct DashboardView: View {
                 Text("Nutrition")
                     .font(.headline)
                     .foregroundColor(.white)
-                // Use real calories from mealManager
+                // Use real nutrition data from mealManager
                 let selectedDate = weekDates.indices.contains(selectedDayIndex) ? weekDates[selectedDayIndex] : Date()
                 let totalCalories = mealManager.totalCalories(for: selectedDate)
+                let totalProtein = mealManager.totalProtein(for: selectedDate)
+                let totalCarbs = mealManager.totalCarbs(for: selectedDate)
+                let totalFats = mealManager.totalFats(for: selectedDate)
+                
                 HStack {
                     // Placeholder for pie chart
                     Circle()
@@ -282,16 +286,11 @@ struct DashboardView: View {
                                 .foregroundColor(.white)
                                 .underline()
                         }
-                        // Dummy macros for now
-                        Text("Protein: 100g")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        Text("Carbs: 230g")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        Text("Fats: 60g")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                        
+                        // Macronutrient breakdown with progress bars
+                        MacronutrientRow(name: "Protein", value: totalProtein, color: .red, maxValue: 150)
+                        MacronutrientRow(name: "Carbs", value: totalCarbs, color: .green, maxValue: 300)
+                        MacronutrientRow(name: "Fats", value: totalFats, color: .yellow, maxValue: 80)
                     }
                 }
                 .padding(.bottom, 4)
@@ -453,6 +452,39 @@ struct MealSheetView: View {
                 .padding()
             Button("Close") { showMealSheet = false }
                 .padding()
+        }
+    }
+}
+
+// Macronutrient Row Component
+struct MacronutrientRow: View {
+    let name: String
+    let value: Int
+    let color: Color
+    let maxValue: Int
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("\(name): \(value)g")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                Spacer()
+            }
+            
+            // Progress bar
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(height: 4)
+                    
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(color)
+                        .frame(width: min(CGFloat(value) / CGFloat(maxValue) * geometry.size.width, geometry.size.width), height: 4)
+                }
+            }
+            .frame(height: 4)
         }
     }
 }

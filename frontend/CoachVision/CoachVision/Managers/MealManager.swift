@@ -15,11 +15,13 @@ class MealManager: ObservableObject {
     }
     
     func updateAuth(token: String?, userId: Int?) {
+        print("🔍 MealManager: updateAuth - token: \(token != nil), userId: \(userId)")
         self.authToken = token
         self.userId = userId
     }
     
     func fetchMeals(for date: Date) async {
+        print("🔍 MealManager: fetchMeals - token: \(authToken != nil), userId: \(userId)")
         guard let token = authToken, let userId = userId else {
             print("No auth token or user ID for fetching meals")
             return
@@ -40,6 +42,7 @@ class MealManager: ObservableObject {
                 return
             }
             let decoded = try JSONDecoder().decode([Meal].self, from: data)
+            print("🔍 MealManager: Fetched \(decoded.count) meals for date \(dateString)")
             await MainActor.run {
                 self.meals = decoded
                 self.isLoading = false
@@ -53,6 +56,7 @@ class MealManager: ObservableObject {
     }
     
     func addMeal(_ meal: Meal, completion: @escaping (Bool) -> Void) {
+        print("🔍 MealManager: addMeal - token: \(authToken != nil), userId: \(userId)")
         guard let token = authToken, let userId = userId else {
             print("No auth token or user ID for adding meal")
             completion(false)
@@ -118,5 +122,17 @@ class MealManager: ObservableObject {
     
     func totalCalories(for date: Date) -> Int {
         meals(for: date).reduce(0) { $0 + $1.calories }
+    }
+    
+    func totalProtein(for date: Date) -> Int {
+        meals(for: date).reduce(0) { $0 + $1.protein }
+    }
+    
+    func totalCarbs(for date: Date) -> Int {
+        meals(for: date).reduce(0) { $0 + $1.carbs }
+    }
+    
+    func totalFats(for date: Date) -> Int {
+        meals(for: date).reduce(0) { $0 + $1.fats }
     }
 } 
