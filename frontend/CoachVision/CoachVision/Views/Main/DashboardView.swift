@@ -66,6 +66,40 @@ struct DashboardView: View {
         planManager.plans.first(where: { $0.isActive }) ?? planManager.plans.first
     }
 
+    // Helper to extract calorie goal from plan content
+    func calorieGoalFromPlan(plan: TrainingPlan?) -> Int {
+        guard let plan = plan else { return 2000 }
+        
+        // Try to parse calorie information from plan content
+        guard let data = plan.content.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return 2000 // Default fallback
+        }
+        
+        // Look for calorie target in nutrition section
+        if let nutrition = json["nutrition"] as? [String: Any] {
+            if let calorieTargetString = nutrition["calorie_target"] as? String {
+                // Extract number from "3000 calories per day"
+                let components = calorieTargetString.components(separatedBy: " ")
+                if let firstComponent = components.first, let calories = Int(firstComponent) {
+                    return calories
+                }
+            }
+        }
+        
+        // If no specific calorie info found, try to infer from plan type
+        switch plan.planType.lowercased() {
+        case "muscle_gain", "strength":
+            return 3000 // Higher calories for muscle gain
+        case "weight_loss":
+            return 1800 // Lower calories for weight loss
+        case "endurance":
+            return 2500 // Moderate calories for endurance
+        default:
+            return 2000 // Default for general fitness
+        }
+    }
+
     // Helper to parse workout for selected day from plan content
     func workoutForSelectedDay(plan: TrainingPlan?) -> String? {
         guard let plan = plan else { return nil }
@@ -294,6 +328,46 @@ struct DashboardView: View {
                     }
                 }
                 .padding(.bottom, 4)
+                
+                // Daily Summary Section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Daily Summary")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    // Calorie progress
+                    let dailyCalorieGoal = calorieGoalFromPlan(plan: currentPlan)
+                    let calorieProgress = min(Double(totalCalories) / Double(dailyCalorieGoal), 1.0)
+                    
+                    HStack {
+                        Text("Calories")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Spacer()
+                        Text("\(totalCalories)/\(dailyCalorieGoal)")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
+                    
+                    // Calorie progress bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(height: 8)
+                            
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(calorieProgress > 1.0 ? Color.red : Color.green)
+                                .frame(width: min(calorieProgress * geometry.size.width, geometry.size.width), height: 8)
+                        }
+                    }
+                    .frame(height: 8)
+                }
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(Color.black.opacity(0.3))
+                .cornerRadius(8)
                 
                 // Scan button
                 Button(action: { showMealScanning = true }) {
