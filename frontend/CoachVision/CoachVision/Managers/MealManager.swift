@@ -117,11 +117,16 @@ class MealManager: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let dateString = formatter.string(from: date)
-        return meals.filter { $0.date == dateString }
+        let filteredMeals = meals.filter { $0.date == dateString }
+        print("🔍 MealManager: meals(for: \(date)) - looking for \(dateString), found \(filteredMeals.count) meals out of \(meals.count) total")
+        return filteredMeals
     }
     
     func totalCalories(for date: Date) -> Int {
-        meals(for: date).reduce(0) { $0 + $1.calories }
+        let mealsForDate = meals(for: date)
+        let total = mealsForDate.reduce(0) { $0 + $1.calories }
+        print("🔍 MealManager: totalCalories for \(date) - found \(mealsForDate.count) meals, total: \(total)")
+        return total
     }
     
     func totalProtein(for date: Date) -> Int {

@@ -5,6 +5,7 @@ import json
 import os
 import openai
 from datetime import datetime, timedelta
+from calendar import Calendar
 from database import get_session
 from models import (
     UserProfile, TrainingPlan, TrainingPlanRequest, TrainingPlanResponse, TrainingPlanUpdateRequest
@@ -41,11 +42,17 @@ async def generate_training_plan(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Get current date for weekly plan
+    # Get current date for weekly plan - always start from Monday
     current_date = datetime.now()
-    today_name = current_date.strftime('%A').lower()
-    plan_duration = f"7 days starting from {today_name} (today)"
-    plan_structure = f"starting from {today_name} and continuing in order for 7 days"
+    calendar = Calendar()
+    weekday = current_date.weekday()  # Monday = 0, Tuesday = 1, ..., Sunday = 6
+    days_to_monday = weekday  # Days to go back to reach Monday
+    
+    # Calculate the Monday of the current week
+    monday_date = current_date - timedelta(days=days_to_monday)
+    
+    plan_duration = "7 days starting from Monday of the current week"
+    plan_structure = "starting from Monday and continuing through Sunday (7 days total)"
     
     # Create prompt for OpenAI
     prompt = f"""
@@ -59,6 +66,8 @@ async def generate_training_plan(
     Experience Level: {user.experience_level}
     
     The plan should cover {plan_duration}. {plan_structure}.
+    
+    IMPORTANT: The plan should always start from Monday and end on Sunday, regardless of what day the plan is created.
     
     IMPORTANT: You MUST return the response in this EXACT JSON format structure:
     
@@ -101,7 +110,7 @@ async def generate_training_plan(
     4. "nutrition" MUST have "calorie_target", "foods_to_eat", and "foods_to_avoid" keys
     5. "recommendations" MUST have "rest_days", "recovery_tips", and "progress_tracking" keys
     6. Follow the EXACT structure above - do not change key names or data types
-    7. Start from {today_name} and continue for 7 days in order
+    7. Start from Monday and continue for 7 days in order (Monday through Sunday)
     
     Return ONLY the JSON object, no additional text or explanations.
     """

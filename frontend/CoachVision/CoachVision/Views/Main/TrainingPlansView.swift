@@ -621,7 +621,7 @@ struct PlanDetailView: View {
     private func deletePlan() async {
         isDeleting = true
         guard let token = authManager.authToken else { isDeleting = false; return }
-        guard let url = URL(string: "http://localhost:8000/plans/\(plan.id)") else { isDeleting = false; return }
+        guard let url = URL(string: "http://192.168.4.27:8000/plans/\(plan.id)") else { isDeleting = false; return }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

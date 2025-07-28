@@ -70,7 +70,17 @@ struct DashboardView: View {
 
     // Computed property for current plan
     var currentPlan: TrainingPlan? {
-        planManager.plans.first(where: { $0.isActive }) ?? planManager.plans.first
+        // Get the most recent active plan
+        let activePlan = planManager.plans.first(where: { $0.isActive })
+        
+        // If no active plan, return the most recent plan
+        if activePlan == nil {
+            return planManager.plans.first
+        }
+        
+        // Check if the plan is valid for the current week
+        // Plans created with the new logic will always align with Monday-Sunday
+        return activePlan
     }
 
     // Helper to extract calorie goal from plan content
