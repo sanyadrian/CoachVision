@@ -6,6 +6,16 @@ struct DashboardView: View {
     @EnvironmentObject var mealManager: MealManager
     @State private var videoAnalyses: [VideoAnalysis] = []
     @State private var selectedDayIndex: Int = 0
+    
+    // Computed property to get current day index
+    var currentDayIndex: Int {
+        let today = Date()
+        let calendar = Calendar.current
+        let weekday = calendar.component(.weekday, from: today)
+        // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
+        let adjustedWeekday = (weekday == 1) ? 6 : weekday - 2
+        return adjustedWeekday
+    }
     @State private var showMealSheet: Bool = false
     @State private var showMealScanning: Bool = false
     @State private var newMealName: String = ""
@@ -15,18 +25,15 @@ struct DashboardView: View {
     @State private var newMealFats: String = ""
     @State private var mealAddError: String? = nil
 
-    // Dummy week dates for now
+    // Current week dates (Monday to Sunday)
     var weekDates: [Date] {
-        guard let plan = currentPlan else { return [] }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSS"
-        guard let startDate = formatter.date(from: plan.createdAt) else { return [] }
-        // Find the most recent Monday before or on startDate
+        let today = Date()
         let calendar = Calendar.current
-        let weekday = calendar.component(.weekday, from: startDate)
+        let weekday = calendar.component(.weekday, from: today)
+        // Find the most recent Monday before or on today
         // In Calendar, Sunday = 1, Monday = 2, ..., Saturday = 7
         let daysToMonday = (weekday == 2) ? 0 : ((weekday == 1) ? 6 : weekday - 2)
-        guard let monday = calendar.date(byAdding: .day, value: -daysToMonday, to: startDate) else { return [] }
+        guard let monday = calendar.date(byAdding: .day, value: -daysToMonday, to: today) else { return [] }
         var dates: [Date] = []
         for i in 0..<7 {
             if let date = calendar.date(byAdding: .day, value: i, to: monday) {
@@ -453,10 +460,20 @@ struct DashboardView: View {
                 }
             }
             fetchVideoAnalyses()
-            // Fetch meals for the selected day
+            
+            // Set selected day to current day and fetch meals
+            selectedDayIndex = currentDayIndex
+            print("Set selected day index to: \(selectedDayIndex) (current day)")
+            
+            // Fetch meals for the selected day immediately after setting the index
             Task {
+                // Small delay to ensure state is updated
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                
                 if weekDates.indices.contains(selectedDayIndex) {
-                    await mealManager.fetchMeals(for: weekDates[selectedDayIndex])
+                    let selectedDate = weekDates[selectedDayIndex]
+                    print("Fetching meals for selected date: \(selectedDate)")
+                    await mealManager.fetchMeals(for: selectedDate)
                 }
             }
         }
