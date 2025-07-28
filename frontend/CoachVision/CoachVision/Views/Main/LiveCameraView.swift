@@ -5,7 +5,7 @@ import UIKit
 struct LiveCameraView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var mealManager: MealManager
-    @StateObject private var foodRecognitionService = FoodRecognitionService()
+    @EnvironmentObject var foodRecognitionService: FoodRecognitionService
     
     @State private var showingFoodDetails = false
     @State private var recognizedFood: FoodItem?

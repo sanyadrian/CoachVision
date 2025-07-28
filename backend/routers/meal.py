@@ -46,7 +46,7 @@ def analyze_food_image(request: FoodAnalysisRequest, session: Session = Depends(
         
         # Call OpenAI Vision API
         response = openai.ChatCompletion.create(
-            model="gpt-4-vision-preview",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",

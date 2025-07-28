@@ -3,7 +3,7 @@
 struct MealScanningView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var mealManager: MealManager
-    @StateObject private var foodRecognitionService = FoodRecognitionService()
+    @EnvironmentObject var foodRecognitionService: FoodRecognitionService
     
     @State private var selectedImage: UIImage?
     @State private var showingImagePicker = false

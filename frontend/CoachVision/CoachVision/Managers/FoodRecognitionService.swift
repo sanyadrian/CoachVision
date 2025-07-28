@@ -10,34 +10,123 @@ struct FoodItem: Codable {
     let confidence: Double
 }
 
+struct OpenAIFoodItem: Codable {
+    let name: String
+    let calories: Int
+    let protein: Double
+    let carbs: Double
+    let fats: Double
+    let confidence: Double = 0.9
+}
+
 class FoodRecognitionService: ObservableObject {
     @Published var isAnalyzing = false
     @Published var errorMessage: String?
+    
+    private let baseURL = "http://192.168.4.27:8000"
+    private var authToken: String?
+    
+    func updateAuthToken(_ token: String?) {
+        self.authToken = token
+    }
     
     func recognizeFood(from image: UIImage, completion: @escaping (Result<FoodItem, Error>) -> Void) {
         isAnalyzing = true
         errorMessage = nil
         
-        // Simulate API call delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            self.isAnalyzing = false
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            isAnalyzing = false
+            completion(.failure(FoodRecognitionError.invalidImage))
+            return
+        }
+        
+        let base64Image = imageData.base64EncodedString()
+        
+        Task {
+            await performOpenAIRecognition(base64Image: base64Image, completion: completion)
+        }
+    }
+    
+    private func performOpenAIRecognition(base64Image: String, completion: @escaping (Result<FoodItem, Error>) -> Void) async {
+        guard let url = URL(string: "\(baseURL)/meals/analyze-food") else {
+            await MainActor.run {
+                isAnalyzing = false
+                completion(.failure(FoodRecognitionError.invalidURL))
+            }
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        if let token = authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        
+        let body: [String: Any] = [
+            "image": base64Image
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            await MainActor.run {
+                isAnalyzing = false
+                completion(.failure(error))
+            }
+            return
+        }
+        
+        print("Making OpenAI food recognition request...")
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
             
-            // Mock food recognition response
-            let mockFoods = [
-                FoodItem(name: "Grilled Chicken Breast", calories: 165, protein: 31.0, carbs: 0.0, fats: 3.6, confidence: 0.95),
-                FoodItem(name: "Salmon Fillet", calories: 208, protein: 25.0, carbs: 0.0, fats: 12.0, confidence: 0.92),
-                FoodItem(name: "Mixed Salad", calories: 45, protein: 2.5, carbs: 8.0, fats: 0.3, confidence: 0.88),
-                FoodItem(name: "Brown Rice", calories: 216, protein: 4.5, carbs: 45.0, fats: 1.8, confidence: 0.90),
-                FoodItem(name: "Broccoli", calories: 55, protein: 3.7, carbs: 11.2, fats: 0.6, confidence: 0.85),
-                FoodItem(name: "Banana", calories: 105, protein: 1.3, carbs: 27.0, fats: 0.4, confidence: 0.98),
-                FoodItem(name: "Apple", calories: 95, protein: 0.5, carbs: 25.0, fats: 0.3, confidence: 0.97),
-                FoodItem(name: "Greek Yogurt", calories: 130, protein: 22.0, carbs: 9.0, fats: 0.5, confidence: 0.93),
-                FoodItem(name: "Oatmeal", calories: 150, protein: 5.0, carbs: 27.0, fats: 3.0, confidence: 0.91),
-                FoodItem(name: "Eggs", calories: 140, protein: 12.0, carbs: 1.0, fats: 10.0, confidence: 0.94)
-            ]
+            print("OpenAI response status code: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+            print("OpenAI response data: \(String(data: data, encoding: .utf8) ?? "Unable to decode")")
             
-            let randomFood = mockFoods.randomElement()!
-            completion(.success(randomFood))
+            guard let httpResponse = response as? HTTPURLResponse else {
+                await MainActor.run {
+                    isAnalyzing = false
+                    completion(.failure(FoodRecognitionError.apiError("Invalid HTTP response")))
+                }
+                return
+            }
+            
+            if httpResponse.statusCode != 200 {
+                await MainActor.run {
+                    isAnalyzing = false
+                    completion(.failure(FoodRecognitionError.apiError("API returned status code \(httpResponse.statusCode)")))
+                }
+                return
+            }
+            
+            // Parse the OpenAI response
+            let openAIFood = try JSONDecoder().decode(OpenAIFoodItem.self, from: data)
+            
+            // Convert to our FoodItem format
+            let foodItem = FoodItem(
+                name: openAIFood.name,
+                calories: openAIFood.calories,
+                protein: openAIFood.protein,
+                carbs: openAIFood.carbs,
+                fats: openAIFood.fats,
+                confidence: openAIFood.confidence
+            )
+            
+            await MainActor.run {
+                isAnalyzing = false
+                print("OpenAI recognized: \(foodItem.name) with \(foodItem.calories) calories")
+                completion(.success(foodItem))
+            }
+            
+        } catch {
+            await MainActor.run {
+                isAnalyzing = false
+                print("OpenAI recognition error: \(error)")
+                completion(.failure(error))
+            }
         }
     }
 }
@@ -46,6 +135,12 @@ enum FoodRecognitionError: Error, LocalizedError {
     case invalidImage
     case noData
     case noFoodDetected
+    case invalidURL
+    case custom(String)
+    
+    static func apiError(_ message: String) -> FoodRecognitionError {
+        return .custom(message)
+    }
     
     var errorDescription: String? {
         switch self {
@@ -55,6 +150,10 @@ enum FoodRecognitionError: Error, LocalizedError {
             return "No data received from server"
         case .noFoodDetected:
             return "No food detected in image"
+        case .invalidURL:
+            return "Invalid URL"
+        case .custom(let message):
+            return message
         }
     }
 } 
