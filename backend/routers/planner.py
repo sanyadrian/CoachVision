@@ -54,6 +54,25 @@ async def generate_training_plan(
     plan_duration = "7 days starting from Monday of the current week"
     plan_structure = "starting from Monday and continuing through Sunday (7 days total)"
     
+    # Create personalized prompt based on user's goals and experience
+    goal_instructions = ""
+    if user.fitness_goal == "weight_loss":
+        goal_instructions = "Focus on calorie deficit, high-intensity cardio, and strength training to build lean muscle while burning fat. Include more cardio sessions and circuit training."
+    elif user.fitness_goal == "muscle_gain":
+        goal_instructions = "Focus on progressive overload, compound movements, and higher calorie intake. Include more rest days and prioritize strength training with moderate rep ranges (6-12 reps)."
+    elif user.fitness_goal == "strength":
+        goal_instructions = "Focus on compound lifts, lower rep ranges (1-6 reps), and longer rest periods. Prioritize deadlifts, squats, bench press, and overhead press."
+    elif user.fitness_goal == "endurance":
+        goal_instructions = "Focus on cardiovascular training, longer duration exercises, and building stamina. Include running, cycling, swimming, and high-rep resistance training."
+    
+    experience_instructions = ""
+    if user.experience_level == "beginner":
+        experience_instructions = "Start with basic exercises, focus on proper form, lower intensity, and gradual progression. Include more rest days and simpler workout structures."
+    elif user.experience_level == "intermediate":
+        experience_instructions = "Include moderate complexity exercises, balanced intensity, and structured progression. Mix compound and isolation movements."
+    elif user.experience_level == "advanced":
+        experience_instructions = "Include advanced techniques, higher intensity, complex movements, and minimal rest periods. Focus on periodization and advanced training methods."
+    
     # Create prompt for OpenAI
     prompt = f"""
     Create a personalized {request.plan_type} training and diet plan for the following user:
@@ -64,6 +83,10 @@ async def generate_training_plan(
     Height: {user.height} cm
     Fitness Goal: {user.fitness_goal}
     Experience Level: {user.experience_level}
+    
+    PERSONALIZATION REQUIREMENTS:
+    - Fitness Goal ({user.fitness_goal}): {goal_instructions}
+    - Experience Level ({user.experience_level}): {experience_instructions}
     
     The plan should cover {plan_duration}. {plan_structure}.
     
@@ -111,6 +134,13 @@ async def generate_training_plan(
     5. "recommendations" MUST have "rest_days", "recovery_tips", and "progress_tracking" keys
     6. Follow the EXACT structure above - do not change key names or data types
     7. Start from Monday and continue for 7 days in order (Monday through Sunday)
+    8. Tailor calorie targets based on fitness goal:
+       - Weight Loss: 1800-2200 calories (deficit)
+       - Muscle Gain: 2800-3500 calories (surplus)
+       - Strength: 2500-3000 calories (maintenance/slight surplus)
+       - Endurance: 2500-3200 calories (adequate fuel)
+    9. Adjust exercise intensity and complexity based on experience level
+    10. Ensure workouts align with the specific fitness goal requirements above
     
     Return ONLY the JSON object, no additional text or explanations.
     """
