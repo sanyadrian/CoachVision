@@ -6,23 +6,24 @@ struct LoginView: View {
     @State private var password = ""
     
     var body: some View {
-        VStack(spacing: 24) {
-            // Header
-            VStack(spacing: 16) {
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.system(size: 60))
-                    .foregroundColor(.white)
-                
-                Text("Welcome Back")
-                    .font(.title)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                
-                Text("Sign in to continue")
-                    .font(.subheadline)
-                    .foregroundColor(.gray)
-            }
-            .padding(.top, 60)
+        ScrollView {
+            VStack(spacing: 24) {
+                // Header
+                VStack(spacing: 16) {
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.system(size: 60))
+                        .foregroundColor(.white)
+                    
+                    Text("Welcome Back")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Text("Sign in to continue")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                }
+                .padding(.top, 40)
             
             // Form fields
             VStack(spacing: 16) {
@@ -89,7 +90,8 @@ struct LoginView: View {
             .opacity((email.isEmpty || password.isEmpty) ? 0.6 : 1.0)
             .padding(.horizontal, 20)
             
-            Spacer()
+            Spacer(minLength: 100)
+        }
         }
         .background(Color.black)
     }
