@@ -72,6 +72,15 @@ struct AuthenticationView: View {
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     .animation(.easeInOut(duration: 0.3), value: selectedTab)
+                    .onChange(of: authManager.registrationSuccessful) { successful in
+                        if successful {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                selectedTab = 0 // Switch to login tab
+                            }
+                            // Reset the flag
+                            authManager.registrationSuccessful = false
+                        }
+                    }
                 }
             }
         }

@@ -6,6 +6,7 @@ class AuthenticationManager: ObservableObject {
     @Published var currentUser: UserProfile?
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var registrationSuccessful = false
     
     // Use your computer's local IP address here
     // You can find it by running 'ifconfig' in Terminal on your Mac
@@ -241,6 +242,7 @@ class AuthenticationManager: ObservableObject {
                             // Handle registration response
                             if let userResponse = try? JSONDecoder().decode(UserProfile.self, from: data) {
                                 self.currentUser = userResponse
+                                self.registrationSuccessful = true
                             }
                         }
                     } else {

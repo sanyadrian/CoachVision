@@ -90,9 +90,9 @@ async def register_user(
 ):
     """Register a new user with basic info (email, name, password)"""
     
-    # Check if user already exists
+    # Check if user already exists (case-insensitive)
     existing_user = session.execute(
-        select(UserProfile).where(UserProfile.email == user_data.email)
+        select(UserProfile).where(UserProfile.email.ilike(user_data.email))
     ).scalars().first()
     
     if existing_user:
@@ -106,9 +106,9 @@ async def register_user(
     password = user_dict.pop("password")
     hashed_password = get_password_hash(password)
     
-    # Create user with minimal required fields
+    # Create user with minimal required fields (normalize email to lowercase)
     user = UserProfile(
-        email=user_dict["email"],
+        email=user_dict["email"].lower(),
         name=user_dict["name"],
         hashed_password=hashed_password
         # Other fields will be None until profile is completed
@@ -127,9 +127,9 @@ async def login_user(
 ):
     """Login user and return access token"""
     
-    # Find user by email
+    # Find user by email (case-insensitive)
     user = session.execute(
-        select(UserProfile).where(UserProfile.email == form_data.username)
+        select(UserProfile).where(UserProfile.email.ilike(form_data.username))
     ).scalars().first()
     
     if not user or not verify_password(form_data.password, user.hashed_password):
