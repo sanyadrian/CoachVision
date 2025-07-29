@@ -127,4 +127,15 @@ def get_meals_for_user(user_id: int, date: Optional[date] = Query(None), session
         query = query.where(Meal.date == date)
     result = session.execute(query)
     meals = result.scalars().all()
-    return meals 
+    return meals
+
+@router.delete("/{meal_id}")
+def delete_meal(meal_id: int, session: Session = Depends(get_session)):
+    """Delete a meal by ID"""
+    meal = session.get(Meal, meal_id)
+    if not meal:
+        raise HTTPException(status_code=404, detail="Meal not found")
+    
+    session.delete(meal)
+    session.commit()
+    return {"message": "Meal deleted successfully"} 

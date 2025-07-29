@@ -22,6 +22,9 @@ struct CoachVisionApp: App {
                 .environmentObject(foodRecognitionService)
                 .preferredColorScheme(.dark)
                 .task {
+                    // Set mealManager reference in authManager
+                    authManager.mealManager = mealManager
+                    
                     await authManager.initializeUserProfile()
                     // Update mealManager with latest auth info
                     await MainActor.run {

@@ -446,6 +446,7 @@ struct DashboardView: View {
                         }
                     }
                 )
+                .environmentObject(mealManager)
             }
             .sheet(isPresented: $showMealScanning) {
                 MealScanningView(selectedDate: weekDates.indices.contains(selectedDayIndex) ? weekDates[selectedDayIndex] : Date())
@@ -508,6 +509,7 @@ struct MealSheetView: View {
     @Binding var newMealFats: String
     @Binding var mealAddError: String?
     var addMealAction: () -> Void
+    @EnvironmentObject var mealManager: MealManager
 
     var body: some View {
         VStack {
@@ -515,13 +517,29 @@ struct MealSheetView: View {
                 .font(.title2)
                 .padding()
             List(meals) { meal in
-                VStack(alignment: .leading) {
-                    Text(meal.name)
-                        .font(.headline)
-                    Text("Calories: \(meal.calories)")
-                        .font(.caption)
-                    Text("Protein: \(meal.protein)g, Carbs: \(meal.carbs)g, Fats: \(meal.fats)g")
-                        .font(.caption2)
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text(meal.name)
+                            .font(.headline)
+                        Text("Calories: \(meal.calories)")
+                            .font(.caption)
+                        Text("Protein: \(meal.protein)g, Carbs: \(meal.carbs)g, Fats: \(meal.fats)g")
+                            .font(.caption2)
+                    }
+                    Spacer()
+                    Button(action: {
+                        mealManager.deleteMeal(meal.id) { success in
+                            if success {
+                                print("✅ Meal deleted successfully")
+                            } else {
+                                print("❌ Failed to delete meal")
+                            }
+                        }
+                    }) {
+                        Image(systemName: "trash")
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(BorderlessButtonStyle())
                 }
             }
             Divider().padding(.vertical, 8)

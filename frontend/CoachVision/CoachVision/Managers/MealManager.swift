@@ -140,4 +140,39 @@ class MealManager: ObservableObject {
     func totalFats(for date: Date) -> Int {
         meals(for: date).reduce(0) { $0 + $1.fats }
     }
+    
+    func deleteMeal(_ mealId: Int, completion: @escaping (Bool) -> Void) {
+        print("🔍 MealManager: deleteMeal - token: \(authToken != nil), userId: \(userId)")
+        guard let token = authToken else {
+            print("No auth token for deleting meal")
+            completion(false)
+            return
+        }
+        guard let url = URL(string: "http://192.168.4.27:8000/meals/\(mealId)") else { 
+            completion(false)
+            return 
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Error deleting meal: \(error)")
+                    completion(false)
+                    return
+                }
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    print("Failed to delete meal, status code: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                    completion(false)
+                    return
+                }
+                // Remove meal from local array
+                self.meals.removeAll { $0.id == mealId }
+                print("🔍 MealManager: Successfully deleted meal with ID \(mealId)")
+                completion(true)
+            }
+        }.resume()
+    }
 } 

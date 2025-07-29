@@ -16,6 +16,9 @@ class AuthenticationManager: ObservableObject {
     // Training Plan Manager
     lazy var trainingPlanManager = TrainingPlanManager(authToken: authToken)
     
+    // Meal Manager reference
+    weak var mealManager: MealManager?
+    
     init() {
         // Check for saved token on app launch
         if let token = UserDefaults.standard.string(forKey: "authToken") {
@@ -143,6 +146,11 @@ class AuthenticationManager: ObservableObject {
                             self.currentUser = userResponse
                             // Clear any error messages on success
                             self.errorMessage = nil
+                            
+                            // Update meal manager with user ID
+                            if let token = self.authToken {
+                                self.mealManager?.updateAuth(token: token, userId: userResponse.id)
+                            }
                         } else {
                             print("Failed to decode user response")
                             print("Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
@@ -223,6 +231,11 @@ class AuthenticationManager: ObservableObject {
                                 
                                 // Update training plan manager with new token
                                 self.trainingPlanManager.updateAuthToken(tokenResponse.access_token)
+                                
+                                // Update meal manager with new token and user ID
+                                if let currentUser = self.currentUser {
+                                    self.mealManager?.updateAuth(token: tokenResponse.access_token, userId: currentUser.id)
+                                }
                             }
                         } else {
                             // Handle registration response
