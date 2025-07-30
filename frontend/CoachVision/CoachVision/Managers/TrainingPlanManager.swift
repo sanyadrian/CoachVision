@@ -4,6 +4,7 @@ class TrainingPlanManager: ObservableObject {
     @Published var plans: [TrainingPlan] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var refreshTrigger = UUID() // Force UI refresh
     
     private let baseURL = "http://192.168.4.27:8000"  // Your computer's local IP
     private var authToken: String?
@@ -233,6 +234,7 @@ class TrainingPlanManager: ObservableObject {
                                 // Force UI refresh by updating on main thread
                                 DispatchQueue.main.async {
                                     self.plans[planIndex] = updatedPlan
+                                    self.refreshTrigger = UUID() // Force UI refresh
                                     print("✅ Local plan data updated for day \(dayName)")
                                     print("🔍 Updated plan content preview: \(String(contentString.prefix(200)))...")
                                 }

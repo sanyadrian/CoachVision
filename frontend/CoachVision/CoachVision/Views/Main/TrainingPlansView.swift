@@ -648,6 +648,7 @@ struct PlanContentView: View {
     let planCreatedAt: String
     let planId: Int
     @State private var completedDays: Set<String>
+    @State private var refreshKey = UUID() // Force view refresh
     @EnvironmentObject var authManager: AuthenticationManager
     
     init(planData: [String: Any], planCreatedAt: String, plan: TrainingPlan) {
@@ -662,6 +663,9 @@ struct PlanContentView: View {
     }
     
     private var currentWorkouts: [String: Any]? {
+        // Use refreshKey to force recalculation
+        _ = refreshKey
+        
         guard let currentPlan = currentPlan,
               let data = currentPlan.content.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -737,6 +741,11 @@ struct PlanContentView: View {
                 completedDays = updatedPlan.completedDays
                 print("PlanContentView: Updated completedDays to \(completedDays)")
             }
+        }
+        .onReceive(authManager.trainingPlanManager.$refreshTrigger) { _ in
+            // Force view refresh when refreshTrigger changes
+            print("PlanContentView: Refresh trigger activated")
+            refreshKey = UUID() // Force view to recalculate
         }
     }
 }
