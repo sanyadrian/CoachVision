@@ -249,4 +249,48 @@ async def update_completed_days(
     session.commit()
     session.refresh(plan)
     
-    return {"message": "Completed days updated successfully", "completed_days": request.completed_days} 
+    return {"message": "Completed days updated successfully", "completed_days": request.completed_days}
+
+@router.put("/{plan_id}/edit-day")
+async def edit_plan_day(
+    plan_id: int,
+    request: dict,
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
+):
+    """Edit a specific day in a training plan"""
+    plan = session.get(TrainingPlan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Training plan not found")
+    
+    if plan.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to edit this plan")
+    
+    try:
+        # Parse the current plan content
+        plan_data = json.loads(plan.content)
+        
+        # Update the specific day
+        day_name = request.get("day_name")
+        new_workout = request.get("workout")
+        
+        if not day_name or not new_workout:
+            raise HTTPException(status_code=400, detail="Missing day_name or workout data")
+        
+        # Update the workout for the specific day
+        if "workouts" in plan_data and day_name in plan_data["workouts"]:
+            plan_data["workouts"][day_name] = new_workout
+            
+            # Update the plan content
+            plan.content = json.dumps(plan_data)
+            session.commit()
+            session.refresh(plan)
+            
+            return {"message": f"Day {day_name} updated successfully", "plan": plan}
+        else:
+            raise HTTPException(status_code=400, detail=f"Day {day_name} not found in plan")
+            
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid plan content format")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating plan: {str(e)}") 

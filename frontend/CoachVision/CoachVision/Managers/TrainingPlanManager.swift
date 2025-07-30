@@ -158,4 +158,92 @@ class TrainingPlanManager: ObservableObject {
             }
         }
     }
+    
+    func editPlanDay(planId: Int, dayName: String, workout: [String: Any], completion: @escaping (Bool) -> Void) {
+        guard let token = authToken else { 
+            completion(false)
+            return 
+        }
+        guard let url = URL(string: "http://192.168.4.27:8000/plans/\(planId)/edit-day") else { 
+            completion(false)
+            return 
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: Any] = [
+            "day_name": dayName,
+            "workout": workout
+        ]
+        
+        do {
+            let data = try JSONSerialization.data(withJSONObject: body)
+            request.httpBody = data
+        } catch {
+            print("❌ Failed to encode edit request: \(error)")
+            completion(false)
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("❌ Error editing plan day: \(error)")
+                    completion(false)
+                    return
+                }
+                
+                guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                    print("❌ Failed to edit plan day, status code: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                    completion(false)
+                    return
+                }
+                
+                // Update local plan data
+                if let planIndex = self.plans.firstIndex(where: { $0.id == planId }) {
+                    let originalPlan = self.plans[planIndex]
+                    
+                    // Parse the current plan content
+                    if let planData = try? JSONSerialization.jsonObject(with: originalPlan.content.data(using: .utf8) ?? Data()) as? [String: Any] {
+                        var mutablePlanData = planData
+                        
+                        // Update the specific day in the workouts
+                        if var workouts = mutablePlanData["workouts"] as? [String: Any] {
+                            workouts[dayName] = workout
+                            mutablePlanData["workouts"] = workouts
+                            
+                            // Update the plan content
+                            if let updatedContent = try? JSONSerialization.data(withJSONObject: mutablePlanData),
+                               let contentString = String(data: updatedContent, encoding: .utf8) {
+                                
+                                // Create a new plan instance with updated content
+                                let updatedPlan = TrainingPlan(
+                                    id: originalPlan.id,
+                                    userId: originalPlan.userId,
+                                    planType: originalPlan.planType,
+                                    content: contentString,
+                                    createdAt: originalPlan.createdAt,
+                                    isActive: originalPlan.isActive,
+                                    completedDays: originalPlan.completedDays
+                                )
+                                
+                                // Force UI refresh by updating on main thread
+                                DispatchQueue.main.async {
+                                    self.plans[planIndex] = updatedPlan
+                                    print("✅ Local plan data updated for day \(dayName)")
+                                    print("🔍 Updated plan content preview: \(String(contentString.prefix(200)))...")
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                print("✅ Plan day \(dayName) updated successfully")
+                completion(true)
+            }
+        }.resume()
+    }
 } 

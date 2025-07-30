@@ -661,10 +661,31 @@ struct PlanContentView: View {
         authManager.trainingPlanManager.plans.first { $0.id == planId }
     }
     
+    private var currentWorkouts: [String: Any]? {
+        guard let currentPlan = currentPlan,
+              let data = currentPlan.content.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let workouts = json["workouts"] as? [String: Any] else {
+            return nil
+        }
+        print("🔍 PlanContentView: Getting current workouts for plan \(currentPlan.id)")
+        print("🔍 PlanContentView: Workouts keys: \(workouts.keys)")
+        
+        // Debug: Print the actual workout data for the day being edited
+        if let mondayWorkout = workouts["monday"] as? [String: Any] {
+            print("🔍 PlanContentView: Monday workout type: \(mondayWorkout["workout_type"] ?? "nil")")
+            if let exercises = mondayWorkout["exercises"] as? [String] {
+                print("🔍 PlanContentView: Monday exercises: \(exercises)")
+            }
+        }
+        
+        return workouts
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Weekly plan - display by days
-            if let workouts = planData["workouts"] as? [String: Any],
+            if let workouts = currentWorkouts,
                let currentPlan = currentPlan {
                 WorkoutsSection(
                     workouts: workouts, 
@@ -785,7 +806,8 @@ struct WorkoutsSection: View {
                             isCompleted: completedDays.contains(day.lowercased()),
                             onToggleCompletion: {
                                 onDayToggle(day)
-                            }
+                            },
+                            planId: plan.id
                         )
                     } else if let restDay = workouts[day] as? String {
                         // Handle rest day as string
@@ -977,32 +999,49 @@ struct DayWorkoutCard: View {
     let workout: [String: Any]
     let isCompleted: Bool
     let onToggleCompletion: () -> Void
+    let planId: Int
+    @State private var showEditSheet = false
+    @EnvironmentObject var authManager: AuthenticationManager
     
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(day.capitalized)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                Spacer()
-                
-                // Completion indicator
-                if isCompleted {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.title2)
-                        .foregroundColor(.green)
-                }
-            }
+    private var headerView: some View {
+        HStack {
+            Text(day.capitalized)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            Spacer()
             
-            // Show workout type
+            // Edit button
+            Button(action: {
+                showEditSheet = true
+            }) {
+                Image(systemName: "pencil")
+                    .foregroundColor(.blue)
+                    .font(.subheadline)
+            }
+            .buttonStyle(BorderlessButtonStyle())
+            
+            // Completion indicator
+            if isCompleted {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.green)
+            }
+        }
+    }
+    
+    private var workoutTypeView: some View {
+        Group {
             if let workoutType = workout["workout_type"] as? String {
                 Text(workoutType)
                     .font(.subheadline)
                     .foregroundColor(isCompleted ? .gray : .green)
             }
-            
-            // Show exercises
+        }
+    }
+    
+    private var exercisesView: some View {
+        Group {
             if let exercises = workout["exercises"] as? [String] {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(exercises, id: \.self) { exercise in
@@ -1017,6 +1056,14 @@ struct DayWorkoutCard: View {
                     }
                 }
             }
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            headerView
+            workoutTypeView
+            exercisesView
         }
         .padding()
         .background(isCompleted ? Color.green.opacity(0.1) : Color(red: 0.1, green: 0.1, blue: 0.15))
@@ -1036,6 +1083,14 @@ struct DayWorkoutCard: View {
         .onTapGesture {
             print("DayWorkoutCard tapped for day: \(day)")
             onToggleCompletion()
+        }
+        .sheet(isPresented: $showEditSheet) {
+            EditWorkoutDayView(
+                dayName: day,
+                currentWorkout: workout,
+                planId: planId
+            )
+            .environmentObject(authManager.trainingPlanManager)
         }
     }
 }
