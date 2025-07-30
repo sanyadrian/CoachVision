@@ -83,6 +83,14 @@ class UserProfileComplete(BaseModel):
     fitness_goal: FitnessGoal
     experience_level: ExperienceLevel
 
+class UserProfileUpdate(BaseModel):
+    name: str
+    age: int
+    weight: float
+    height: float
+    fitness_goal: FitnessGoal
+    experience_level: ExperienceLevel
+
 @router.post("/register", response_model=UserProfileResponse)
 async def register_user(
     user_data: UserRegister,
@@ -170,6 +178,28 @@ async def complete_user_profile(
     """Complete user profile with fitness information"""
     
     # Update user profile with the provided data
+    current_user.age = profile_data.age
+    current_user.weight = profile_data.weight
+    current_user.height = profile_data.height
+    current_user.fitness_goal = profile_data.fitness_goal
+    current_user.experience_level = profile_data.experience_level
+    
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+    
+    return current_user
+
+@router.put("/update-profile", response_model=UserProfileResponse)
+async def update_user_profile(
+    profile_data: UserProfileUpdate,
+    session: Session = Depends(get_session),
+    current_user: UserProfile = Depends(verify_token)
+):
+    """Update user profile information"""
+    
+    # Update user profile with the provided data
+    current_user.name = profile_data.name
     current_user.age = profile_data.age
     current_user.weight = profile_data.weight
     current_user.height = profile_data.height

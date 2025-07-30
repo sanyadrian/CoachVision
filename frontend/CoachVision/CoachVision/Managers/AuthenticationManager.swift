@@ -87,6 +87,21 @@ class AuthenticationManager: ObservableObject {
         )
     }
     
+    func updateProfile(name: String, age: Int, weight: Double, height: Double, fitnessGoal: String, experienceLevel: String) async {
+        await performRequest(
+            endpoint: "/auth/update-profile",
+            method: "PUT",
+            body: [
+                "name": name,
+                "age": age,
+                "weight": weight,
+                "height": height,
+                "fitness_goal": fitnessGoal,
+                "experience_level": experienceLevel
+            ]
+        )
+    }
+    
     func fetchCurrentUser() async {
         await performRequest(
             endpoint: "/auth/me",

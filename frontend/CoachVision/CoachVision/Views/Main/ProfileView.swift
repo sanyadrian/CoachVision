@@ -442,7 +442,8 @@ struct EditProfileView: View {
               let weightDouble = Double(weight),
               let heightDouble = Double(height) else { return }
         
-        await authManager.completeProfile(
+        await authManager.updateProfile(
+            name: name,
             age: ageInt,
             weight: weightDouble,
             height: heightDouble,
