@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var showingEditProfile = false
+    @State private var showingAbout = false
     
     var body: some View {
         NavigationView {
@@ -172,7 +173,7 @@ struct ProfileView: View {
                                 SettingsRow(
                                     title: "About",
                                     icon: "info.circle",
-                                    action: { /* TODO */ }
+                                    action: { showingAbout = true }
                                 )
                             }
                             .background(Color(red: 0.1, green: 0.1, blue: 0.15))
@@ -203,6 +204,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView()
+        }
+        .sheet(isPresented: $showingAbout) {
+            AboutView()
         }
     }
     
