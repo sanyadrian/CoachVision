@@ -24,6 +24,8 @@ struct DashboardView: View {
     @State private var newMealCarbs: String = ""
     @State private var newMealFats: String = ""
     @State private var mealAddError: String? = nil
+    @State private var showingNewWeekAlert = false
+    @State private var lastWeekStartDate: Date? = nil
 
     // Current week dates (Monday to Sunday)
     var weekDates: [Date] {
@@ -181,6 +183,49 @@ struct DashboardView: View {
                 }
             }
         }.resume()
+    }
+    
+    func checkForNewWeek() {
+        let calendar = Calendar.current
+        let today = Date()
+        
+        // Get the start of the current week (Monday)
+        let weekday = calendar.component(.weekday, from: today)
+        let daysToMonday = (weekday == 2) ? 0 : ((weekday == 1) ? 6 : weekday - 2)
+        guard let currentWeekStart = calendar.date(byAdding: .day, value: -daysToMonday, to: today) else { return }
+        
+        // Load last week start date from UserDefaults
+        if lastWeekStartDate == nil {
+            if let savedDate = UserDefaults.standard.object(forKey: "lastWeekStartDate") as? Date {
+                lastWeekStartDate = savedDate
+            } else {
+                // First time using the app, store current week start
+                lastWeekStartDate = currentWeekStart
+                UserDefaults.standard.set(currentWeekStart, forKey: "lastWeekStartDate")
+                return
+            }
+        }
+        
+        // Check if we've moved to a new week
+        if let lastWeekStart = lastWeekStartDate,
+           !calendar.isDate(currentWeekStart, inSameDayAs: lastWeekStart) {
+            // It's a new week!
+            showingNewWeekAlert = true
+            lastWeekStartDate = currentWeekStart
+            UserDefaults.standard.set(currentWeekStart, forKey: "lastWeekStartDate")
+        }
+    }
+    
+    func generateNewPlan() {
+        guard let userId = authManager.currentUser?.id else { return }
+        Task {
+            await planManager.createPlan(planType: "general_fitness", focusArea: "full_body", userId: userId)
+        }
+    }
+    
+    func keepCurrentPlan() {
+        // Just dismiss the alert, keep the current plan
+        showingNewWeekAlert = false
     }
 
     var body: some View {
@@ -487,6 +532,9 @@ struct DashboardView: View {
                     await mealManager.fetchMeals(for: selectedDate)
                 }
             }
+            
+            // Check for new week
+            checkForNewWeek()
         }
         .onChange(of: selectedDayIndex) { newValue in
             Task {
@@ -494,6 +542,16 @@ struct DashboardView: View {
                     await mealManager.fetchMeals(for: weekDates[newValue])
                 }
             }
+        }
+        .alert("New Week Started!", isPresented: $showingNewWeekAlert) {
+            Button("Generate New Plan") {
+                generateNewPlan()
+            }
+            Button("Keep Current Plan") {
+                keepCurrentPlan()
+            }
+        } message: {
+            Text("A new week has begun. Would you like to generate a fresh training plan tailored to your current progress, or keep your existing plan?")
         }
     }
 }

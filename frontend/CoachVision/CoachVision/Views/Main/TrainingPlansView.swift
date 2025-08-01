@@ -6,6 +6,22 @@ struct TrainingPlansView: View {
     @State private var plansCount = 0
     @State private var selectedPlan: TrainingPlan?
     @State private var showingPlanDetail = false
+    @State private var showingReplacePlanAlert = false
+    @State private var isReplacingPlan = false
+    
+    func checkAndCreatePlan() {
+        // Check if there's an active plan
+        let hasActivePlan = authManager.trainingPlanManager.plans.contains { $0.isActive }
+        
+        if hasActivePlan {
+            // Show confirmation alert
+            showingReplacePlanAlert = true
+        } else {
+            // No active plan, proceed directly
+            isReplacingPlan = false
+            showingCreatePlan = true
+        }
+    }
     
     var body: some View {
         NavigationView {
@@ -41,7 +57,7 @@ struct TrainingPlansView: View {
                         
                         // Create New Plan Button
                         Button(action: {
-                            showingCreatePlan = true
+                            checkAndCreatePlan()
                         }) {
                             HStack {
                                 Image(systemName: "plus.circle.fill")
@@ -134,10 +150,19 @@ struct TrainingPlansView: View {
             .navigationBarHidden(true)
         }
         .sheet(isPresented: $showingCreatePlan) {
-            CreatePlanView()
+            CreatePlanView(isReplacingExistingPlan: isReplacingPlan)
         }
         .sheet(item: $selectedPlan) { plan in
             PlanDetailView(plan: plan)
+        }
+        .alert("Replace Current Plan?", isPresented: $showingReplacePlanAlert) {
+            Button("Yes, Replace") {
+                isReplacingPlan = true
+                showingCreatePlan = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("You already have an active training plan. Creating a new plan will replace your current one. Are you sure you want to continue?")
         }
         .task {
             // Fetch plans when view appears
@@ -303,6 +328,11 @@ struct CreatePlanView: View {
     @State private var planType = "weekly"
     @State private var focusArea = "strength"
     @State private var isCreating = false
+    let isReplacingExistingPlan: Bool
+    
+    init(isReplacingExistingPlan: Bool = false) {
+        self.isReplacingExistingPlan = isReplacingExistingPlan
+    }
     
     private var userFitnessGoal: String {
         guard let goal = authManager.currentUser?.fitnessGoal else { return "general_fitness" }
@@ -401,6 +431,13 @@ struct CreatePlanView: View {
                     Button("Create Plan") {
                         Task {
                             isCreating = true
+                            
+                            // If replacing existing plan, delete active plans first
+                            if isReplacingExistingPlan {
+                                print("Replacing existing plan - deleting active plans first")
+                                await authManager.trainingPlanManager.deleteActivePlans()
+                            }
+                            
                             await authManager.trainingPlanManager.createPlan(
                                 planType: planType,
                                 focusArea: focusArea,

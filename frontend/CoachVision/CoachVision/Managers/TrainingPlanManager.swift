@@ -73,6 +73,45 @@ class TrainingPlanManager: ObservableObject {
         )
     }
     
+    func deletePlan(planId: Int) async {
+        print("Deleting plan with ID: \(planId)")
+        
+        // Remove from local array immediately for UI responsiveness
+        await MainActor.run {
+            plans.removeAll { $0.id == planId }
+            print("Removed plan \(planId) from local array. Remaining plans: \(plans.count)")
+        }
+        
+        await performRequest(
+            endpoint: "/plans/\(planId)",
+            method: "DELETE",
+            body: [:]
+        )
+    }
+    
+    func deleteActivePlans() async {
+        print("Deleting all active plans")
+        
+        // Get all active plan IDs
+        let activePlanIds = plans.filter { $0.isActive }.map { $0.id }
+        print("Found \(activePlanIds.count) active plans to delete: \(activePlanIds)")
+        
+        // Remove active plans from local array immediately
+        await MainActor.run {
+            plans.removeAll { $0.isActive }
+            print("Removed active plans from local array. Remaining plans: \(plans.count)")
+        }
+        
+        // Delete each active plan from backend
+        for planId in activePlanIds {
+            await performRequest(
+                endpoint: "/plans/\(planId)",
+                method: "DELETE",
+                body: [:]
+            )
+        }
+    }
+    
     private func performRequest(endpoint: String, method: String, body: [String: Any]) async {
         guard let token = authToken else { 
             print("No auth token available for training plans")

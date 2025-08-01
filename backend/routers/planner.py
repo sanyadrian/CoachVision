@@ -162,6 +162,20 @@ async def generate_training_plan(
         
         plan_content = response.choices[0].message.content
         
+        # Clean up the response - remove markdown code blocks if present
+        if plan_content.startswith("```json"):
+            plan_content = plan_content.replace("```json", "").replace("```", "").strip()
+        elif plan_content.startswith("```"):
+            plan_content = plan_content.replace("```", "").strip()
+        
+        # Validate that the content is valid JSON
+        try:
+            json.loads(plan_content)
+        except json.JSONDecodeError as e:
+            print(f"Invalid JSON from OpenAI: {e}")
+            print(f"Raw content: {plan_content}")
+            raise HTTPException(status_code=500, detail="Failed to generate valid training plan")
+        
         # Create training plan record
         training_plan = TrainingPlan(
             user_id=user.id,
