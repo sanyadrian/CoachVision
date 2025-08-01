@@ -102,6 +102,46 @@ class AuthenticationManager: ObservableObject {
         )
     }
     
+    func submitSupportRequest(_ request: SupportRequest) async -> Bool {
+        guard let authToken = authToken else {
+            print("No auth token for submitting support request")
+            return false
+        }
+        
+        let url = URL(string: "\(baseURL)/support/submit")!
+        var urlRequest = URLRequest(url: url)
+        urlRequest.httpMethod = "POST"
+        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        urlRequest.setValue("Bearer \(authToken)", forHTTPHeaderField: "Authorization")
+        
+        do {
+            let jsonData = try JSONEncoder().encode(request)
+            urlRequest.httpBody = jsonData
+            
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("Support request response status: \(httpResponse.statusCode)")
+                
+                if httpResponse.statusCode == 200 {
+                    print("Support request submitted successfully")
+                    return true
+                } else {
+                    print("Support request failed with status: \(httpResponse.statusCode)")
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        print("Response: \(responseString)")
+                    }
+                    return false
+                }
+            }
+            
+            return false
+        } catch {
+            print("Error submitting support request: \(error)")
+            return false
+        }
+    }
+    
     func fetchCurrentUser() async {
         await performRequest(
             endpoint: "/auth/me",

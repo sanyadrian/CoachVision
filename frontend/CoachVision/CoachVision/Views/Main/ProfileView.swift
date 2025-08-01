@@ -4,6 +4,7 @@ struct ProfileView: View {
     @EnvironmentObject var authManager: AuthenticationManager
     @State private var showingEditProfile = false
     @State private var showingAbout = false
+    @State private var showingHelpSupport = false
     
     var body: some View {
         NavigationView {
@@ -164,7 +165,7 @@ struct ProfileView: View {
                                 SettingsRow(
                                     title: "Help & Support",
                                     icon: "questionmark.circle",
-                                    action: { /* TODO */ }
+                                    action: { showingHelpSupport = true }
                                 )
                                 
                                 Divider()
@@ -207,6 +208,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingAbout) {
             AboutView()
+        }
+        .sheet(isPresented: $showingHelpSupport) {
+            HelpSupportView()
         }
     }
     
