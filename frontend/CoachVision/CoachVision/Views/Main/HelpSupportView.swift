@@ -10,6 +10,9 @@ struct HelpSupportView: View {
     @State private var showSuccessAlert = false
     @State private var showErrorAlert = false
     @State private var errorMessage = ""
+    @State private var showingUserGuide = false
+    @State private var showingFAQ = false
+    @State private var showingEmailSupport = false
     
     var body: some View {
         NavigationView {
@@ -155,19 +158,22 @@ struct HelpSupportView: View {
                                 QuickHelpRow(
                                     icon: "book.fill",
                                     title: "User Guide",
-                                    description: "Learn how to use CoachVision effectively"
+                                    description: "Learn how to use CoachVision effectively",
+                                    action: { showingUserGuide = true }
                                 )
                                 
                                 QuickHelpRow(
                                     icon: "questionmark.circle.fill",
                                     title: "FAQ",
-                                    description: "Find answers to common questions"
+                                    description: "Find answers to common questions",
+                                    action: { showingFAQ = true }
                                 )
                                 
                                 QuickHelpRow(
                                     icon: "envelope.fill",
                                     title: "Email Support",
-                                    description: "Get direct support via email"
+                                    description: "Get direct support via email",
+                                    action: { showingEmailSupport = true }
                                 )
                             }
                         }
@@ -197,6 +203,15 @@ struct HelpSupportView: View {
                 Button("OK") { }
             } message: {
                 Text(errorMessage)
+            }
+            .sheet(isPresented: $showingUserGuide) {
+                UserGuideView()
+            }
+            .sheet(isPresented: $showingFAQ) {
+                FAQView()
+            }
+            .sheet(isPresented: $showingEmailSupport) {
+                EmailSupportView()
             }
         }
     }
@@ -273,34 +288,37 @@ struct QuickHelpRow: View {
     let icon: String
     let title: String
     let description: String
+    let action: () -> Void
     
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.title3)
-                .foregroundColor(.blue)
-                .frame(width: 24)
-            
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.title3)
+                    .foregroundColor(.blue)
+                    .frame(width: 24)
                 
-                Text(description)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    Text(description)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundColor(.gray)
             }
-            
-            Spacer()
-            
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(.gray)
+            .padding()
+            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+            .cornerRadius(12)
         }
-        .padding()
-        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-        .cornerRadius(12)
     }
 }
 
