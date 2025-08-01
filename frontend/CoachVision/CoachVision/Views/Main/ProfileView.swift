@@ -5,6 +5,7 @@ struct ProfileView: View {
     @State private var showingEditProfile = false
     @State private var showingAbout = false
     @State private var showingHelpSupport = false
+    @State private var showingPrivacyPolicy = false
     
     var body: some View {
         NavigationView {
@@ -156,7 +157,7 @@ struct ProfileView: View {
                                 SettingsRow(
                                     title: "Privacy",
                                     icon: "lock",
-                                    action: { /* TODO */ }
+                                    action: { showingPrivacyPolicy = true }
                                 )
                                 
                                 Divider()
@@ -211,6 +212,9 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showingHelpSupport) {
             HelpSupportView()
+        }
+        .sheet(isPresented: $showingPrivacyPolicy) {
+            PrivacyPolicyView()
         }
     }
     
