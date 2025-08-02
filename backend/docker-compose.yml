@@ -7,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///./coachvision.db}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///app/data/coachvision.db}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - SECRET_KEY=${SECRET_KEY}
       - ADMIN_EMAIL=${ADMIN_EMAIL}
@@ -17,7 +17,7 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD}
     volumes:
       - ./uploads:/app/uploads
-      - ./coachvision.db:/app/coachvision.db
+      - ./data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

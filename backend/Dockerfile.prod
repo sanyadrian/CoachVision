@@ -39,8 +39,12 @@ WORKDIR /app
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
+# Create non-root user and set permissions
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app && \
+    mkdir -p /app/uploads && \
+    chown -R app:app /app/uploads
+
 USER app
 
 # Expose port
