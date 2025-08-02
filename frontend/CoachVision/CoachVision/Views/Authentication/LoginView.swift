@@ -7,22 +7,22 @@ struct LoginView: View {
     
     var body: some View {
         ScrollView {
-            VStack(spacing: 24) {
-                // Header
-                VStack(spacing: 16) {
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 60))
-                        .foregroundColor(.white)
-                    
-                    Text("Welcome Back")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                    
-                    Text("Sign in to continue")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                }
+        VStack(spacing: 24) {
+            // Header
+            VStack(spacing: 16) {
+                Image(systemName: "figure.strengthtraining.traditional")
+                    .font(.system(size: 60))
+                    .foregroundColor(.white)
+                
+                Text("Welcome Back")
+                    .font(.title)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                
+                Text("Sign in to continue")
+                    .font(.subheadline)
+                    .foregroundColor(.gray)
+            }
                 .padding(.top, 40)
             
             // Form fields

@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  coachvision-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: coachvision-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./coachvision.db}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+    volumes:
+      - ./uploads:/app/uploads
+      - ./coachvision.db:/app/coachvision.db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s 

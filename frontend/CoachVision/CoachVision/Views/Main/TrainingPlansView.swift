@@ -1050,12 +1050,12 @@ struct DayWorkoutCard: View {
     @EnvironmentObject var authManager: AuthenticationManager
     
     private var headerView: some View {
-        HStack {
-            Text(day.capitalized)
-                .font(.headline)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-            Spacer()
+            HStack {
+                Text(day.capitalized)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                Spacer()
             
             // Edit button
             Button(action: {
@@ -1066,16 +1066,16 @@ struct DayWorkoutCard: View {
                     .font(.subheadline)
             }
             .buttonStyle(BorderlessButtonStyle())
-            
-            // Completion indicator
-            if isCompleted {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(.green)
+                
+                // Completion indicator
+                if isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundColor(.green)
             }
-        }
-    }
-    
+                }
+            }
+            
     private var workoutTypeView: some View {
         Group {
             if let workoutType = workout["workout_type"] as? String {
@@ -1084,8 +1084,8 @@ struct DayWorkoutCard: View {
                     .foregroundColor(isCompleted ? .gray : .green)
             }
         }
-    }
-    
+            }
+            
     private var exercisesView: some View {
         Group {
             if let exercises = workout["exercises"] as? [String] {

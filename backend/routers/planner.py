@@ -263,7 +263,7 @@ async def update_completed_days(
     session.commit()
     session.refresh(plan)
     
-    return {"message": "Completed days updated successfully", "completed_days": request.completed_days}
+    return {"message": "Completed days updated successfully", "completed_days": request.completed_days} 
 
 @router.put("/{plan_id}/edit-day")
 async def edit_plan_day(

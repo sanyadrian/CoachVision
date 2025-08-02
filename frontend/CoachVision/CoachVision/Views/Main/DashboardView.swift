@@ -229,25 +229,25 @@ struct DashboardView: View {
     }
 
     var body: some View {
-        ScrollView {
+                ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-            // Header
-            Text("Welcome back,")
-                .font(.title2)
-                .foregroundColor(.gray)
-            Text(authManager.currentUser?.name ?? "User")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .foregroundColor(.white)
+                        // Header
+                            Text("Welcome back,")
+                                .font(.title2)
+                                .foregroundColor(.gray)
+                            Text(authManager.currentUser?.name ?? "User")
+                                .font(.largeTitle)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
                 .padding(.bottom, 10)
 
-            // Week Bar
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(weekDates.indices, id: \.self) { idx in
-                        let date = weekDates[idx]
+                        // Week Bar
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(weekDates.indices, id: \.self) { idx in
+                                        let date = weekDates[idx]
                         let isSelected = idx == selectedDayIndex
-                        let day = Calendar.current.component(.day, from: date)
+                                        let day = Calendar.current.component(.day, from: date)
                         let month = DateFormatter().monthSymbols[Calendar.current.component(.month, from: date) - 1].prefix(3)
                         let plan = currentPlan
                         let fullDayName: String = {
@@ -256,14 +256,14 @@ struct DashboardView: View {
                             return formatter.string(from: date).lowercased()
                         }()
                         let isCompleted = plan?.completedDays.contains(fullDayName) ?? false
-                        VStack {
-                            Text(shortWeekday(date: date))
-                                .font(.caption)
-                                .foregroundColor(isSelected ? .white : .gray)
-                            Text("\(day)")
-                                .font(.headline)
-                                .fontWeight(isSelected ? .bold : .regular)
-                                .foregroundColor(isSelected ? .white : .gray)
+                                        VStack {
+                                            Text(shortWeekday(date: date))
+                                                .font(.caption)
+                                                .foregroundColor(isSelected ? .white : .gray)
+                                            Text("\(day)")
+                                                .font(.headline)
+                                                .fontWeight(isSelected ? .bold : .regular)
+                                                .foregroundColor(isSelected ? .white : .gray)
                             Text(month)
                                 .font(.caption2)
                                 .foregroundColor(.gray)
@@ -272,97 +272,97 @@ struct DashboardView: View {
                                     .foregroundColor(.green)
                                     .font(.caption)
                             }
-                        }
-                        .padding(10)
-                        .background(isSelected ? Color.blue : Color.clear)
-                        .cornerRadius(10)
-                        .onTapGesture { selectedDayIndex = idx }
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
+                                        }
+                                        .padding(10)
+                                        .background(isSelected ? Color.blue : Color.clear)
+                                        .cornerRadius(10)
+                                        .onTapGesture { selectedDayIndex = idx }
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
 
             // Training Plan Progress Card (dynamic)
             if let plan = currentPlan {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Training Plan Progress")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    ProgressView(value: plan.progress)
-                        .accentColor(.green)
-                    Text("\(Int(plan.progress * 100))% complete")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Training Plan Progress")
+                .font(.headline)
+                .foregroundColor(.white)
+                ProgressView(value: plan.progress)
+                    .accentColor(.green)
+                Text("\(Int(plan.progress * 100))% complete")
+                    .font(.caption)
+                    .foregroundColor(.gray)
                     if let workout = workoutForSelectedDay(plan: plan) {
                         Text("Workout for \(selectedDayName.capitalized):")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                        Text(workout)
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                    Text(workout)
+                        .font(.caption)
+                        .foregroundColor(.gray)
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                             .multilineTextAlignment(.leading)
-                    } else {
+                } else {
                         Text("No workout scheduled for \(selectedDayName.capitalized)")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                }
-                .padding()
-                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                .cornerRadius(16)
-                .padding(.horizontal, 20)
+                        .font(.caption)
+                    .foregroundColor(.gray)
             }
+        }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(16)
+        .padding(.horizontal, 20)
+    }
 
             // Video Analysis Progress Card (dynamic)
             let videoCount = videoAnalyses.count
             let avgFormScore = videoAnalyses.isEmpty ? 0 : Int(videoAnalyses.map { $0.confidenceScore }.reduce(0, +) / Double(videoAnalyses.count))
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Video Analysis Progress")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Videos analyzed")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Video Analysis Progress")
+                .font(.headline)
+                .foregroundColor(.white)
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Videos analyzed")
+                        .font(.caption)
+                        .foregroundColor(.gray)
                         Text("\(videoCount)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                    }
-                    Spacer()
-                    VStack(alignment: .leading) {
-                        Text("Avg. Form Score")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        Text("\(avgFormScore)")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                    }
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
                 }
-                // Dummy trend bar
-                HStack(spacing: 4) {
-                    ForEach([70, 75, 80, 85, 90], id: \.self) { score in
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(Color.blue)
+                Spacer()
+                VStack(alignment: .leading) {
+                    Text("Avg. Form Score")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                        Text("\(avgFormScore)")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                }
+            }
+            // Dummy trend bar
+            HStack(spacing: 4) {
+                ForEach([70, 75, 80, 85, 90], id: \.self) { score in
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color.blue)
                             .frame(width: 16, height: CGFloat(score) * 0.5)
                     }
                 }
-                .frame(height: 40)
-            }
-            .padding()
-            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-            .cornerRadius(16)
-            .padding(.horizontal, 20)
+            .frame(height: 40)
+        }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(16)
+        .padding(.horizontal, 20)
 
             // Nutrition Card (placeholder)
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Nutrition")
-                    .font(.headline)
-                    .foregroundColor(.white)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Nutrition")
+                .font(.headline)
+                .foregroundColor(.white)
                 // Use real nutrition data from mealManager
                 let selectedDate = weekDates.indices.contains(selectedDayIndex) ? weekDates[selectedDayIndex] : Date()
                 let totalCalories = mealManager.totalCalories(for: selectedDate)
@@ -379,8 +379,8 @@ struct DashboardView: View {
                         // Calories is tappable
                         Button(action: { showMealSheet = true }) {
                             Text("Calories: \(totalCalories)")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
+                            .font(.subheadline)
+                            .foregroundColor(.white)
                                 .underline()
                         }
                         
@@ -423,7 +423,7 @@ struct DashboardView: View {
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(calorieProgress > 1.0 ? Color.red : Color.green)
                                 .frame(width: min(calorieProgress * geometry.size.width, geometry.size.width), height: 8)
-                        }
+                    }
                     }
                     .frame(height: 8)
                 }
@@ -444,12 +444,12 @@ struct DashboardView: View {
                     .padding(.vertical, 6)
                     .background(Color.blue)
                     .cornerRadius(8)
-                }
             }
-            .padding()
-            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-            .cornerRadius(16)
-            .padding(.horizontal, 20)
+        }
+        .padding()
+        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+        .cornerRadius(16)
+        .padding(.horizontal, 20)
             .sheet(isPresented: $showMealSheet) {
                 MealSheetView(
                     meals: mealManager.meals(for: weekDates[selectedDayIndex]),
@@ -651,7 +651,7 @@ struct MacronutrientRow: View {
             }
             
             // Progress bar
-            GeometryReader { geometry in
+        GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 2)
                         .fill(Color.gray.opacity(0.3))
