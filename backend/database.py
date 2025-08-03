@@ -1,15 +1,24 @@
+import os
 from sqlmodel import SQLModel, create_engine, Session
 from sqlalchemy.orm import sessionmaker
 
-# Database URL - using SQLite for development
-DATABASE_URL = "sqlite:///./coachvision.db"
+# Database URL - read directly from environment
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./coachvision.db")
 
 # Create engine
-engine = create_engine(
-    DATABASE_URL,
-    echo=True,  # False in production
-    connect_args={"check_same_thread": False}
-)
+if DATABASE_URL.startswith("sqlite"):
+    # SQLite configuration
+    engine = create_engine(
+        DATABASE_URL,
+        echo=True,  # False in production
+        connect_args={"check_same_thread": False}
+    )
+else:
+    # PostgreSQL configuration
+    engine = create_engine(
+        DATABASE_URL,
+        echo=True  # False in production
+    )
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
