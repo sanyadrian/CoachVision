@@ -390,7 +390,7 @@ struct VideoAnalysisView: View {
         
         isLoadingAnalyses = true
         
-        let url = URL(string: "http://192.168.4.27:8000/videos/user/\(userId)")!
+                    let url = URL(string: "https://flash-list.com/videos/user/\(userId)")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
@@ -426,7 +426,7 @@ struct VideoAnalysisView: View {
             return
         }
         
-        let url = URL(string: "http://192.168.4.27:8000/videos/\(analysis.id)")!
+        let url = URL(string: "https://flash-list.com/videos/\(analysis.id)")!
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -484,7 +484,7 @@ struct VideoAnalysisView: View {
         }
         
         // Create the upload URL
-        let uploadURL = URL(string: "http://192.168.4.27:8000/videos/analyze")!
+        let uploadURL = URL(string: "https://flash-list.com/videos/analyze")!
         
         // Create the request
         var request = URLRequest(url: uploadURL)
@@ -1277,7 +1277,7 @@ struct VideoAnalysisDetailView: View {
             return
         }
         
-        let url = URL(string: "http://192.168.4.27:8000/videos/\(analysis.id)")!
+        let url = URL(string: "https://flash-list.com/videos/\(analysis.id)")!
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -1314,7 +1314,7 @@ struct VideoAnalysisDetailView: View {
         isDownloadingVideo = true
         downloadProgress = 0.0
         
-        let url = URL(string: "http://192.168.4.27:8000/videos/download/\(analysis.id)")!
+        let url = URL(string: "https://flash-list.com/videos/download/\(analysis.id)")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         

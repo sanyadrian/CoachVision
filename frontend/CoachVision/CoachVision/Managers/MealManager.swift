@@ -29,7 +29,7 @@ class MealManager: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let dateString = formatter.string(from: date)
-        guard let url = URL(string: "http://192.168.4.27:8000/meals/user/\(userId)?date=\(dateString)") else { return }
+        guard let url = URL(string: "https://flash-list.com/meals/user/\(userId)?date=\(dateString)") else { return }
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         isLoading = true
@@ -62,7 +62,7 @@ class MealManager: ObservableObject {
             completion(false)
             return
         }
-        guard let url = URL(string: "http://192.168.4.27:8000/meals") else { return }
+        guard let url = URL(string: "https://flash-list.com/meals") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -148,7 +148,7 @@ class MealManager: ObservableObject {
             completion(false)
             return
         }
-        guard let url = URL(string: "http://192.168.4.27:8000/meals/\(mealId)") else { 
+        guard let url = URL(string: "https://flash-list.com/meals/\(mealId)") else { 
             completion(false)
             return 
         }

@@ -157,7 +157,7 @@ struct DashboardView: View {
             return
         }
 
-        let url = URL(string: "http://192.168.4.27:8000/videos/user/\(userId)")!
+                    let url = URL(string: "https://flash-list.com/videos/user/\(userId)")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 

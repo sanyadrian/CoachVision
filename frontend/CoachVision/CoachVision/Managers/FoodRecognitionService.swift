@@ -23,7 +23,7 @@ class FoodRecognitionService: ObservableObject {
     @Published var isAnalyzing = false
     @Published var errorMessage: String?
     
-    private let baseURL = "http://192.168.4.27:8000"
+    private let baseURL = "https://flash-list.com"
     private var authToken: String?
     
     func updateAuthToken(_ token: String?) {

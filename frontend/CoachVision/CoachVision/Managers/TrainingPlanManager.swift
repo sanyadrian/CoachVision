@@ -6,7 +6,7 @@ class TrainingPlanManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var refreshTrigger = UUID() // Force UI refresh
     
-    private let baseURL = "http://192.168.4.27:8000"  // Your computer's local IP
+    private let baseURL = "https://flash-list.com"  // Production API URL
     private var authToken: String?
     
     init(authToken: String?) {
@@ -204,7 +204,7 @@ class TrainingPlanManager: ObservableObject {
             completion(false)
             return 
         }
-        guard let url = URL(string: "http://192.168.4.27:8000/plans/\(planId)/edit-day") else { 
+        guard let url = URL(string: "https://flash-list.com/plans/\(planId)/edit-day") else { 
             completion(false)
             return 
         }
