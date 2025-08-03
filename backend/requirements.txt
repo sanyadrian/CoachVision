@@ -5,6 +5,7 @@ uvicorn[standard]==0.24.0
 # Database and ORM
 sqlmodel==0.0.8
 sqlalchemy==1.4.41
+psycopg2-binary==2.9.9
 
 # File handling and multipart
 python-multipart==0.0.6
