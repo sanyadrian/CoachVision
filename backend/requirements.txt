@@ -16,14 +16,10 @@ PyJWT==2.8.0
 
 # AI & Analysis
 openai==0.28.1
-opencv-python==4.8.1.78
+opencv-python-headless==4.7.0.72
 mediapipe==0.10.7
 
 # Utilities
 python-dateutil==2.8.2
 aiofiles==23.2.1
-requests==2.31.0
-
-# Email
-smtplib (built-in)
-email (built-in) 
+requests==2.31.0 
