@@ -132,6 +132,8 @@ struct VideoAnalysisView: View {
         .sheet(isPresented: $showingExerciseTypePicker) {
             ExerciseTypePickerView(selectedExerciseType: $selectedExerciseType) {
                 uploadVideoForAnalysis()
+                // Dismiss the picker after starting upload
+                showingExerciseTypePicker = false
             }
         }
         .sheet(isPresented: $showingVideoPlayer) {
@@ -296,8 +298,9 @@ struct VideoAnalysisView: View {
                     .font(.subheadline)
                     
                     Button("Upload for Analysis") {
-                        // Immediately switch to Analyses tab to prevent multiple uploads
+                        // Immediately switch to Analyses tab and show analyzing state
                         selectedViewMode = 1
+                        isAnalyzing = true
                         showingExerciseTypePicker = true
                     }
                     .foregroundColor(isAnalyzing ? .gray : .orange)
@@ -341,6 +344,11 @@ struct VideoAnalysisView: View {
                     
                     Text("Please wait while AI analyzes your form")
                         .font(.subheadline)
+                        .foregroundColor(.gray)
+                        .multilineTextAlignment(.center)
+                    
+                    Text("This may take a few moments")
+                        .font(.caption)
                         .foregroundColor(.gray)
                         .multilineTextAlignment(.center)
                 }
@@ -527,8 +535,18 @@ struct VideoAnalysisView: View {
                         print("Video uploaded and analyzed successfully")
                         // Clear the recorded video URL
                         recordedVideoURL = nil
-                        // Refresh the analyses list
+                        // Switch to Analyses tab to show the analyzing state
+                        selectedViewMode = 1
+                        // Refresh the analyses list immediately
                         fetchVideoAnalyses()
+                        // Keep showing analyzing state for a moment
+                        isAnalyzing = true
+                        // Stop analyzing state after 3 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                            isAnalyzing = false
+                            // Refresh again to show the new analysis
+                            fetchVideoAnalyses()
+                        }
                     } else {
                         print("Upload failed with status: \(httpResponse.statusCode)")
                         if let data = data {
@@ -798,7 +816,7 @@ struct ExerciseTypePickerView: View {
                     
                     Button("Upload Video") {
                         onUpload()
-                        dismiss()
+                        // Don't dismiss immediately - let the upload process handle it
                     }
                     .foregroundColor(.white)
                     .font(.headline)
