@@ -154,12 +154,12 @@ async def analyze_video(
         
         # Check video duration
         duration = get_video_duration(file_path)
-        if duration > MAX_VIDEO_DURATION:
+        if duration > 15.0:  # Allow up to 15 seconds to account for trimming
             # Clean up file
             os.remove(file_path)
             raise HTTPException(
                 status_code=400, 
-                detail=f"Video too long. Maximum duration is {MAX_VIDEO_DURATION} seconds. Your video is {duration:.1f} seconds."
+                detail=f"Video too long. Maximum duration is 10 seconds. Your video is {duration:.1f} seconds. Please trim it to 10 seconds or less."
             )
         
         if duration < 1:

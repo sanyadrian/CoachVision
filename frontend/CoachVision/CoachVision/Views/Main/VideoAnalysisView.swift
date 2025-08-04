@@ -45,7 +45,7 @@ struct VideoAnalysisView: View {
                                 .fontWeight(.bold)
                                 .foregroundColor(.white)
                             
-                            Text("Record or upload your training videos (max 10 seconds)")
+                            Text("Record or upload your training videos (max 10 seconds, trimming available)")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                         }
@@ -120,7 +120,10 @@ struct VideoAnalysisView: View {
                             recordedVideoURL = url
                             videoDuration = duration
                         } else {
-                            showingDurationAlert = true
+                            // For longer videos, show trimming option
+                            recordedVideoURL = url
+                            videoDuration = duration
+                            // Note: The user can trim in the picker, so we accept the result
                         }
                     }
                 }
@@ -143,29 +146,20 @@ struct VideoAnalysisView: View {
                 }
             }
         }
-        .alert("Video Too Long", isPresented: $showingDurationAlert) {
-            Button("OK") { }
-        } message: {
-            Text("Please select a video that is 10 seconds or shorter for optimal analysis.")
-        }
-        .onAppear {
-            cameraManager.checkCameraPermission()
-            fetchVideoAnalyses()
-        }
         .onReceive(cameraManager.$recordedVideoURL) { url in
             if let videoURL = url {
                 checkVideoDuration(url: videoURL) { duration in
-                    if duration <= 10.0 {
-                        recordedVideoURL = videoURL
-                        videoDuration = duration
-                    } else {
-                        showingDurationAlert = true
-                    }
+                    recordedVideoURL = videoURL
+                    videoDuration = duration
                 }
             }
         }
         .onReceive(cameraManager.$videoSavedToPhotos) { saved in
             videoSavedToPhotos = saved
+        }
+        .onAppear {
+            cameraManager.checkCameraPermission()
+            fetchVideoAnalyses()
         }
     }
     
@@ -561,11 +555,17 @@ struct CameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let view = UIView()
         view.backgroundColor = .black
+        
+        // Add preview layer as sublayer
+        previewLayer.frame = view.bounds
+        previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
+        
         return view
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
+        // Update frame when view bounds change
         DispatchQueue.main.async {
             CATransaction.begin()
             CATransaction.setDisableActions(true)
@@ -636,7 +636,7 @@ class CameraManager: NSObject, ObservableObject {
                 // Start the session on a background queue
                 DispatchQueue.global(qos: .userInitiated).async {
                     session.startRunning()
-                    print("Camera session started")
+                    print("Camera session started successfully")
                 }
             }
         }
