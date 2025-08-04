@@ -40,7 +40,7 @@ class TrainingPlan(SQLModel, table=True):
 class VideoAnalysis(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: int = Field(foreign_key="userprofile.id")
-    video_filename: str = Field(max_length=255)
+    video_filename: Optional[str] = Field(max_length=255, default="")  # Optional since we don't store videos
     exercise_type: str = Field(max_length=100)
     analysis_result: str  # JSON string with analysis data
     feedback: str

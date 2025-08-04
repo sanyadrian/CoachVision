@@ -12,12 +12,34 @@ from models import (
 )
 from routers.auth import verify_token
 from mediapipe_analysis import MediaPipePoseAnalyzer
+import cv2
 
 router = APIRouter()
 
 # Create uploads directory if it doesn't exist
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Video analysis settings
+MAX_VIDEO_DURATION = 10  # seconds
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+
+def get_video_duration(video_path: str) -> float:
+    """Get video duration in seconds"""
+    try:
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return 0
+        
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = frame_count / fps if fps > 0 else 0
+        
+        cap.release()
+        return duration
+    except Exception as e:
+        print(f"Error getting video duration: {e}")
+        return 0
 
 def analyze_video_with_mediapipe(video_path: str, exercise_type: str) -> dict:
     """
@@ -81,7 +103,7 @@ def analyze_video_basic_fallback(video_path: str, exercise_type: str, error_mess
     - The video shows a clear view of the exercise
     - Good lighting conditions
     - The person is fully visible in the frame
-    - The video is not too short or too long
+    - The video is not too short or too long (max 10 seconds)
     """
     
     return {
@@ -112,24 +134,49 @@ async def analyze_video(
     if not video_file.content_type.startswith("video/"):
         raise HTTPException(status_code=400, detail="File must be a video")
     
+    # Check file size
+    content = await video_file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Video file too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB"
+        )
+    
     # Generate unique filename
     file_extension = os.path.splitext(video_file.filename)[1]
     unique_filename = f"{uuid.uuid4()}{file_extension}"
     file_path = os.path.join(UPLOAD_DIR, unique_filename)
     
     try:
-        # Save video file
+        # Save video file temporarily
         async with aiofiles.open(file_path, 'wb') as f:
-            content = await video_file.read()
             await f.write(content)
+        
+        # Check video duration
+        duration = get_video_duration(file_path)
+        if duration > MAX_VIDEO_DURATION:
+            # Clean up file
+            os.remove(file_path)
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Video too long. Maximum duration is {MAX_VIDEO_DURATION} seconds. Your video is {duration:.1f} seconds."
+            )
+        
+        if duration < 1:
+            # Clean up file
+            os.remove(file_path)
+            raise HTTPException(
+                status_code=400,
+                detail="Video too short. Please upload a video between 1-10 seconds."
+            )
         
         # Analyze video using MediaPipe Pose
         analysis_data = analyze_video_with_mediapipe(file_path, exercise_type)
         
-        # Create video analysis record
+        # Create video analysis record (without storing the video file)
         video_analysis = VideoAnalysis(
             user_id=user_id,
-            video_filename=unique_filename,
+            video_filename="",  # No file stored for privacy
             exercise_type=exercise_type,
             analysis_result=json.dumps(analysis_data["analysis_result"]),
             feedback=analysis_data["feedback"]
@@ -139,8 +186,15 @@ async def analyze_video(
         session.commit()
         session.refresh(video_analysis)
         
+        # Clean up video file after analysis (privacy-first approach)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
         return video_analysis
         
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         # Clean up file if analysis fails
         if os.path.exists(file_path):
@@ -184,7 +238,7 @@ async def delete_video_analysis(
     session: Session = Depends(get_session),
     current_user: UserProfile = Depends(verify_token)
 ):
-    """Delete a video analysis and its associated file (authenticated users can only delete their own analyses)"""
+    """Delete a video analysis (authenticated users can only delete their own analyses)"""
     analysis = session.get(VideoAnalysis, analysis_id)
     if not analysis:
         raise HTTPException(status_code=404, detail="Video analysis not found")
@@ -192,54 +246,7 @@ async def delete_video_analysis(
     if analysis.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this video analysis")
     
-    # Delete the video file
-    file_path = os.path.join(UPLOAD_DIR, analysis.video_filename)
-    if os.path.exists(file_path):
-        os.remove(file_path)
-    
-    # Delete the database record
+    # Delete the database record (no video file to delete since we don't store them)
     session.delete(analysis)
     session.commit()
-    return {"message": "Video analysis deleted successfully"}
-
-@router.get("/download/{analysis_id}")
-async def download_video(
-    analysis_id: int,
-    session: Session = Depends(get_session),
-    current_user: UserProfile = Depends(verify_token)
-):
-    """Download the video file for a specific analysis (authenticated users can only download their own videos)"""
-    analysis = session.get(VideoAnalysis, analysis_id)
-    if not analysis:
-        raise HTTPException(status_code=404, detail="Video analysis not found")
-    
-    if analysis.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to download this video")
-    
-    file_path = os.path.join(UPLOAD_DIR, analysis.video_filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Video file not found")
-    
-    # Read the video file and return it as a response
-    try:
-        with open(file_path, 'rb') as f:
-            video_data = f.read()
-        
-        # Determine content type based on file extension
-        content_type = "video/mp4"  # Default
-        if file_path.endswith('.mov'):
-            content_type = "video/quicktime"
-        elif file_path.endswith('.avi'):
-            content_type = "video/x-msvideo"
-        elif file_path.endswith('.mkv'):
-            content_type = "video/x-matroska"
-        
-        return Response(
-            content=video_data,
-            media_type=content_type,
-            headers={
-                "Content-Disposition": f"attachment; filename={analysis.video_filename}"
-            }
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading video file: {str(e)}") 
+    return {"message": "Video analysis deleted successfully"} 

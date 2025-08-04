@@ -27,6 +27,9 @@ struct VideoAnalysisView: View {
     @State private var isViewReady = false
     @State private var isAnalyzing = false
     @State private var showUploadButtons = true
+    @State private var showingDurationAlert = false
+    @State private var videoDuration: Double = 0
+    @State private var recordingTimer: Timer?
     
     var body: some View {
         NavigationView {
@@ -42,7 +45,7 @@ struct VideoAnalysisView: View {
                                 .fontWeight(.bold)
                                 .foregroundColor(.white)
                             
-                            Text("Record or upload your training videos")
+                            Text("Record or upload your training videos (max 10 seconds)")
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                         }
@@ -98,9 +101,10 @@ struct VideoAnalysisView: View {
                             .font(.subheadline)
                             .foregroundColor(.gray)
                         
-                        ProgressView(value: uploadProgress)
-                            .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                            .frame(width: 200)
+                        Text("Video will be deleted after analysis for privacy")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                            .multilineTextAlignment(.center)
                     }
                     .padding()
                     .background(Color(red: 0.1, green: 0.1, blue: 0.15))
@@ -108,94 +112,85 @@ struct VideoAnalysisView: View {
                 }
             }
         }
-        .onAppear {
-            cameraManager.checkCameraPermission()
-        }
-                                .sheet(isPresented: $showingImagePicker) {
-                            ImagePicker(mediaTypes: ["public.movie"], allowsEditing: true) { url in
-                                if let videoURL = url {
-                                    recordedVideoURL = videoURL
-                                    uploadedVideoURL = videoURL
-                                    // Reset upload buttons when video is uploaded
-                                    showUploadButtons = true
-                                }
-                            }
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(mediaTypes: ["public.movie"], allowsEditing: true) { videoURL in
+                if let url = videoURL {
+                    checkVideoDuration(url: url) { duration in
+                        if duration <= 10.0 {
+                            recordedVideoURL = url
+                            videoDuration = duration
+                        } else {
+                            showingDurationAlert = true
                         }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingExerciseTypePicker) {
+            ExerciseTypePickerView(selectedExerciseType: $selectedExerciseType) {
+                uploadVideoForAnalysis()
+            }
+        }
         .sheet(isPresented: $showingVideoPlayer) {
             if let videoURL = recordedVideoURL {
                 VideoPlayerView(videoURL: videoURL)
             }
         }
+        .sheet(isPresented: $showingAnalysisDetail) {
+            if let analysis = selectedAnalysis {
+                VideoAnalysisDetailView(analysis: analysis) {
+                    fetchVideoAnalyses()
+                }
+            }
+        }
+        .alert("Video Too Long", isPresented: $showingDurationAlert) {
+            Button("OK") { }
+        } message: {
+            Text("Please select a video that is 10 seconds or shorter for optimal analysis.")
+        }
+        .onAppear {
+            cameraManager.checkCameraPermission()
+            fetchVideoAnalyses()
+        }
         .onReceive(cameraManager.$recordedVideoURL) { url in
-            recordedVideoURL = url
+            if let videoURL = url {
+                checkVideoDuration(url: videoURL) { duration in
+                    if duration <= 10.0 {
+                        recordedVideoURL = videoURL
+                        videoDuration = duration
+                    } else {
+                        showingDurationAlert = true
+                    }
+                }
+            }
         }
         .onReceive(cameraManager.$videoSavedToPhotos) { saved in
             videoSavedToPhotos = saved
         }
-        .sheet(isPresented: $showingExerciseTypePicker) {
-            ExerciseTypePickerView(
-                selectedExerciseType: $selectedExerciseType,
-                onUpload: {
-                    if let videoURL = recordedVideoURL ?? uploadedVideoURL {
-                        uploadVideoForAnalysis(videoURL: videoURL, exerciseType: selectedExerciseType)
-                    }
-                }
-            )
-        }
-        .sheet(isPresented: $showingAnalysisDetail) {
-            if let analysis = selectedAnalysis {
-                VideoAnalysisDetailView(
-                    analysis: analysis,
-                    onDelete: {
-                        // Refresh the video analyses list
-                        fetchVideoAnalyses()
-                    }
-                )
-            }
-        }
-        .onAppear {
-            fetchVideoAnalyses()
-        }
-        .alert("Delete Analysis", isPresented: $showingDeleteAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                if let analysis = analysisToDelete {
-                    deleteVideoAnalysis(analysis: analysis)
-                }
-            }
-        } message: {
-            Text("Are you sure you want to delete this video analysis? This action cannot be undone.")
-        }
-
     }
     
     // MARK: - Computed Views
     
     private var recordingView: some View {
         VStack(spacing: 24) {
-            Spacer()
-            
             // Camera Preview
             if let previewLayer = cameraManager.previewLayer {
                 CameraPreviewView(previewLayer: previewLayer)
                     .frame(height: 300)
+                    .frame(maxWidth: .infinity)
+                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
                     .cornerRadius(16)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                    )
             } else {
-                // Placeholder when camera not available
                 VStack(spacing: 16) {
                     Image(systemName: "video.slash")
                         .font(.system(size: 60))
                         .foregroundColor(.gray)
                     
-                    Text("Camera Access Required")
+                    Text("Camera Not Available")
                         .font(.headline)
                         .foregroundColor(.white)
                     
-                    Text("Please grant camera permissions to record videos")
+                    Text("Please allow camera access in Settings")
                         .font(.subheadline)
                         .foregroundColor(.gray)
                         .multilineTextAlignment(.center)
@@ -206,6 +201,14 @@ struct VideoAnalysisView: View {
                 .cornerRadius(16)
             }
             
+            // Recording Timer (if recording)
+            if isRecording {
+                Text("Recording... \(Int(videoDuration))s / 10s")
+                    .font(.headline)
+                    .foregroundColor(.red)
+                    .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isRecording)
+            }
+            
             // Recording Controls
             HStack(spacing: 40) {
                 // Record Button
@@ -213,11 +216,25 @@ struct VideoAnalysisView: View {
                     if isRecording {
                         cameraManager.stopRecording()
                         isRecording = false
+                        recordingTimer?.invalidate()
+                        recordingTimer = nil
                     } else {
                         cameraManager.startRecording()
                         isRecording = true
+                        videoDuration = 0
                         // Reset upload buttons when starting new recording
                         showUploadButtons = true
+                        
+                        // Start timer to track recording duration
+                        recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+                            videoDuration += 0.1
+                            if videoDuration >= 10.0 {
+                                cameraManager.stopRecording()
+                                isRecording = false
+                                recordingTimer?.invalidate()
+                                recordingTimer = nil
+                            }
+                        }
                     }
                 }) {
                     ZStack {
@@ -258,13 +275,13 @@ struct VideoAnalysisView: View {
             
             // Status Text
             if isRecording {
-                Text("Recording...")
+                Text("Recording... (Max 10 seconds)")
                     .font(.headline)
                     .foregroundColor(.red)
                     .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: isRecording)
             } else if let videoURL = recordedVideoURL, !isAnalyzing {
                 VStack(spacing: 12) {
-                    Text("Video Recorded!")
+                    Text("Video Recorded! (\(String(format: "%.1f", videoDuration))s)")
                         .font(.headline)
                         .foregroundColor(.green)
                     
@@ -454,58 +471,35 @@ struct VideoAnalysisView: View {
         }.resume()
     }
     
-    private func uploadVideoForAnalysis(videoURL: URL, exerciseType: String) {
+    private func uploadVideoForAnalysis() {
         guard let token = authManager.authToken,
-              let userId = authManager.currentUser?.id else {
-            print("No authentication available")
+              let userId = authManager.currentUser?.id,
+              let videoURL = recordedVideoURL else {
+            print("Missing authentication or video URL")
             return
         }
         
         isUploading = true
-        isAnalyzing = true
-        showUploadButtons = false
-        uploadProgress = 0.0
         
-        // Clear recorded video to prevent re-uploading
-        recordedVideoURL = nil
-        uploadedVideoURL = nil
-        
-        // Start progress simulation
-        DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                uploadProgress = 0.3
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    uploadProgress = 0.7
-                }
-            }
-        }
-        
-        // Create the upload URL
-        let uploadURL = URL(string: "https://flash-list.com/videos/analyze")!
-        
-        // Create the request
-        var request = URLRequest(url: uploadURL)
+        let url = URL(string: "https://flash-list.com/videos/analyze")!
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
-        // Create multipart form data
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         
         var body = Data()
         
-        // Add user_id parameter
+        // Add user_id
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"user_id\"\r\n\r\n".data(using: .utf8)!)
         body.append("\(userId)\r\n".data(using: .utf8)!)
         
-        // Add exercise_type parameter
+        // Add exercise_type
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"exercise_type\"\r\n\r\n".data(using: .utf8)!)
-        body.append("\(exerciseType)\r\n".data(using: .utf8)!)
+        body.append("\(selectedExerciseType)\r\n".data(using: .utf8)!)
         
         // Add video file
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
@@ -523,11 +517,9 @@ struct VideoAnalysisView: View {
         }
         
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        
         request.httpBody = body
         
-        // Perform the upload with progress tracking
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 isUploading = false
                 
@@ -537,41 +529,28 @@ struct VideoAnalysisView: View {
                 }
                 
                 if let httpResponse = response as? HTTPURLResponse {
-                    if httpResponse.statusCode == 200 || httpResponse.statusCode == 201 {
-                        print("Video uploaded successfully!")
-                        if let data = data {
-                            print("Response: \(String(data: data, encoding: .utf8) ?? "")")
-                        }
-                        
-                        // Complete progress animation
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            uploadProgress = 1.0
-                        }
-                        
-                        // Switch to Analyses tab and refresh data
-                        selectedViewMode = 1
+                    if httpResponse.statusCode == 200 {
+                        print("Video uploaded and analyzed successfully")
+                        // Clear the recorded video URL
+                        recordedVideoURL = nil
+                        // Refresh the analyses list
                         fetchVideoAnalyses()
-                        
-                        // Keep analyzing state for a moment to show completion
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            isAnalyzing = false
-                        }
-                        
-                        // Dismiss the exercise type picker
-                        showingExerciseTypePicker = false
                     } else {
                         print("Upload failed with status: \(httpResponse.statusCode)")
                         if let data = data {
-                            print("Error response: \(String(data: data, encoding: .utf8) ?? "")")
+                            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+                            print("Error response: \(errorMessage)")
                         }
-                        
-                        // Restore upload buttons on error
-                        isAnalyzing = false
-                        showUploadButtons = true
                     }
                 }
             }
         }.resume()
+    }
+    
+    private func checkVideoDuration(url: URL, completion: @escaping (Double) -> Void) {
+        let asset = AVURLAsset(url: url)
+        let duration = asset.duration.seconds
+        completion(duration)
     }
 }
 
@@ -908,298 +887,239 @@ struct VideoAnalysisDetailView: View {
     let onDelete: () -> Void
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var authManager: AuthenticationManager
-    @State private var showingVideoPlayer = false
-    @State private var downloadedVideoURL: URL?
-    @State private var isDownloadingVideo = false
-    @State private var downloadProgress: Double = 0.0
-    @State private var showingDeleteAlert = false
     @State private var isViewReady = false
+    @State private var showingDeleteAlert = false
     
     var body: some View {
         NavigationView {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
-                if !isViewReady {
-                    // Loading state
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.5)
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        
-                        Text("Loading Analysis...")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                    }
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 24) {
-                            // Header - Always show this
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(analysis.exerciseTypeDisplay)
-                                    .font(.largeTitle)
-                                    .fontWeight(.bold)
-                                    .foregroundColor(.white)
-                                
-                                Text(analysis.formattedDate)
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                            }
-                            
-                            // Basic Analysis Info - Always show this
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text("Analysis Summary")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Exercise")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Text(analysis.exerciseTypeDisplay)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                    }
+                ScrollView {
+                    VStack(spacing: 20) {
+                        if isViewReady {
+                            VStack(spacing: 16) {
+                                // Header
+                                VStack(spacing: 8) {
+                                    Text(analysis.exerciseType.capitalized)
+                                        .font(.title)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.white)
                                     
-                                    Spacer()
+                                    Text("Analysis Results")
+                                        .font(.subheadline)
+                                        .foregroundColor(.gray)
                                     
-                                    VStack(alignment: .trailing, spacing: 4) {
-                                        Text("Analysis Date")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Text(analysis.formattedDate)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                            }
-                            .padding()
-                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                            .cornerRadius(12)
-                            
-                            // Form Rating Card
-                            VStack(alignment: .leading, spacing: 16) {
-                                Text("Form Analysis")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("Rating")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Text(analysis.formRating)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(formRatingColor)
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    VStack(alignment: .trailing, spacing: 4) {
-                                        Text("Confidence")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Text("\(Int(analysis.confidenceScore * 100))%")
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                                
-                                // Form Score
-                                if let formScore = analysis.parsedAnalysisResult?["form_score"] as? Int {
+                                    // Privacy Notice
                                     HStack {
-                                        Text("Form Score")
+                                        Image(systemName: "lock.shield")
+                                            .foregroundColor(.green)
+                                        Text("Video deleted after analysis for privacy")
                                             .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Spacer()
-                                        Text("\(formScore)/100")
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                    }
-                                    .padding(.top, 8)
-                                }
-                                
-                                // Frames Analyzed
-                                if let framesAnalyzed = analysis.parsedAnalysisResult?["total_frames_analyzed"] as? Int {
-                                    HStack {
-                                        Text("Frames Analyzed")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                        Spacer()
-                                        Text("\(framesAnalyzed)")
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
+                                            .foregroundColor(.green)
                                     }
                                     .padding(.top, 4)
                                 }
-                            }
-                            .padding()
-                            .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                            .cornerRadius(12)
-                            
-                            // Recommendations
-                            if let recommendations = analysis.parsedAnalysisResult?["recommendations"] as? [String], !recommendations.isEmpty {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Recommendations")
+                                
+                                // Form Rating
+                                VStack(spacing: 12) {
+                                    Text("Form Rating")
                                         .font(.headline)
                                         .foregroundColor(.white)
                                     
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        ForEach(recommendations, id: \.self) { recommendation in
-                                            HStack(alignment: .top, spacing: 8) {
-                                                Image(systemName: "lightbulb.fill")
-                                                    .foregroundColor(.yellow)
-                                                    .font(.caption)
-                                                Text(recommendation)
-                                                    .font(.body)
-                                                    .foregroundColor(.white)
-                                                    .multilineTextAlignment(.leading)
-                                                Spacer()
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding()
-                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                                .cornerRadius(12)
-                            }
-                            
-                            // Areas for Improvement
-                            if let areasForImprovement = analysis.parsedAnalysisResult?["areas_for_improvement"] as? [String], !areasForImprovement.isEmpty {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Areas for Improvement")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        ForEach(areasForImprovement, id: \.self) { area in
-                                            HStack(alignment: .top, spacing: 8) {
-                                                Image(systemName: "exclamationmark.triangle.fill")
-                                                    .foregroundColor(.orange)
-                                                    .font(.caption)
-                                                Text(area)
-                                                    .font(.body)
-                                                    .foregroundColor(.white)
-                                                    .multilineTextAlignment(.leading)
-                                                Spacer()
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding()
-                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                                .cornerRadius(12)
-                            }
-                            
-                            // Issues Detected
-                            if let issuesDetected = analysis.parsedAnalysisResult?["issues_detected"] as? [String], !issuesDetected.isEmpty {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Issues Detected")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        ForEach(issuesDetected, id: \.self) { issue in
-                                            HStack(alignment: .top, spacing: 8) {
-                                                Image(systemName: "xmark.circle.fill")
-                                                    .foregroundColor(.red)
-                                                    .font(.caption)
-                                                Text(issue)
-                                                    .font(.body)
-                                                    .foregroundColor(.white)
-                                                    .multilineTextAlignment(.leading)
-                                                Spacer()
-                                            }
-                                        }
-                                    }
-                                }
-                                .padding()
-                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                                .cornerRadius(12)
-                            }
-                            
-                            // Raw Feedback (fallback)
-                            if analysis.parsedAnalysisResult == nil {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    Text("Analysis Data")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                    
-                                    if analysis.feedback.isEmpty {
-                                        VStack(spacing: 16) {
-                                            Image(systemName: "exclamationmark.triangle")
-                                                .font(.system(size: 40))
-                                                .foregroundColor(.orange)
-                                            
-                                            Text("Analysis Data Unavailable")
-                                                .font(.headline)
-                                                .foregroundColor(.white)
-                                            
-                                            Text("The analysis data could not be loaded. Please try refreshing or contact support if the issue persists.")
-                                                .font(.body)
+                                    HStack {
+                                        Text(analysis.formRating)
+                                            .font(.title)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(formRatingColor)
+                                        
+                                        Spacer()
+                                        
+                                        VStack(alignment: .trailing, spacing: 4) {
+                                            Text("Confidence")
+                                                .font(.caption)
                                                 .foregroundColor(.gray)
-                                                .multilineTextAlignment(.center)
+                                            Text("\(Int(analysis.confidenceScore * 100))%")
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.white)
                                         }
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                    } else {
-                                        Text("Feedback")
+                                    }
+                                    
+                                    // Form Score
+                                    if let formScore = analysis.parsedAnalysisResult?["form_score"] as? Int {
+                                        HStack {
+                                            Text("Form Score")
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                            Spacer()
+                                            Text("\(formScore)/100")
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.white)
+                                        }
+                                        .padding(.top, 8)
+                                    }
+                                    
+                                    // Frames Analyzed
+                                    if let framesAnalyzed = analysis.parsedAnalysisResult?["total_frames_analyzed"] as? Int {
+                                        HStack {
+                                            Text("Frames Analyzed")
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                            Spacer()
+                                            Text("\(framesAnalyzed)")
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.white)
+                                        }
+                                        .padding(.top, 4)
+                                    }
+                                }
+                                .padding()
+                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                .cornerRadius(12)
+                                
+                                // Recommendations
+                                if let recommendations = analysis.parsedAnalysisResult?["recommendations"] as? [String], !recommendations.isEmpty {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Recommendations")
                                             .font(.headline)
                                             .foregroundColor(.white)
                                         
-                                        Text(analysis.feedback)
-                                            .font(.body)
-                                            .foregroundColor(.gray)
-                                            .lineSpacing(4)
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            ForEach(recommendations, id: \.self) { recommendation in
+                                                HStack(alignment: .top, spacing: 8) {
+                                                    Image(systemName: "lightbulb.fill")
+                                                        .foregroundColor(.yellow)
+                                                        .font(.caption)
+                                                    Text(recommendation)
+                                                        .font(.body)
+                                                        .foregroundColor(.white)
+                                                        .multilineTextAlignment(.leading)
+                                                    Spacer()
+                                                }
+                                            }
+                                        }
                                     }
+                                    .padding()
+                                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                    .cornerRadius(12)
                                 }
-                                .padding()
-                                .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                                .cornerRadius(12)
-                            }
-                            
-                            // Play Video Button
-                            Button(action: {
-                                downloadAndPlayVideo()
-                            }) {
-                                HStack {
-                                    Image(systemName: "play.circle.fill")
-                                        .font(.title2)
-                                    Text("Play Video")
-                                        .font(.headline)
+                                
+                                // Areas for Improvement
+                                if let areasForImprovement = analysis.parsedAnalysisResult?["areas_for_improvement"] as? [String], !areasForImprovement.isEmpty {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Areas for Improvement")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            ForEach(areasForImprovement, id: \.self) { area in
+                                                HStack(alignment: .top, spacing: 8) {
+                                                    Image(systemName: "exclamationmark.triangle.fill")
+                                                        .foregroundColor(.orange)
+                                                        .font(.caption)
+                                                    Text(area)
+                                                        .font(.body)
+                                                        .foregroundColor(.white)
+                                                        .multilineTextAlignment(.leading)
+                                                    Spacer()
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .padding()
+                                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                    .cornerRadius(12)
                                 }
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(12)
-                            }
-                            
-                            // Delete Button
-                            Button(action: {
-                                showingDeleteAlert = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "trash.circle.fill")
-                                        .font(.title2)
-                                    Text("Delete Analysis")
-                                        .font(.headline)
+                                
+                                // Issues Detected
+                                if let issuesDetected = analysis.parsedAnalysisResult?["issues_detected"] as? [String], !issuesDetected.isEmpty {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Issues Detected")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            ForEach(issuesDetected, id: \.self) { issue in
+                                                HStack(alignment: .top, spacing: 8) {
+                                                    Image(systemName: "xmark.circle.fill")
+                                                        .foregroundColor(.red)
+                                                        .font(.caption)
+                                                    Text(issue)
+                                                        .font(.body)
+                                                        .foregroundColor(.white)
+                                                        .multilineTextAlignment(.leading)
+                                                    Spacer()
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .padding()
+                                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                    .cornerRadius(12)
                                 }
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.red)
-                                .cornerRadius(12)
+                                
+                                // Raw Feedback (fallback)
+                                if analysis.parsedAnalysisResult == nil {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Text("Analysis Data")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                        
+                                        if analysis.feedback.isEmpty {
+                                            VStack(spacing: 16) {
+                                                Image(systemName: "exclamationmark.triangle")
+                                                    .font(.system(size: 40))
+                                                    .foregroundColor(.orange)
+                                                
+                                                Text("Analysis Data Unavailable")
+                                                    .font(.headline)
+                                                    .foregroundColor(.white)
+                                                
+                                                Text("The analysis data could not be loaded. Please try refreshing or contact support if the issue persists.")
+                                                    .font(.body)
+                                                    .foregroundColor(.gray)
+                                                    .multilineTextAlignment(.center)
+                                            }
+                                            .frame(maxWidth: .infinity)
+                                            .padding()
+                                        } else {
+                                            Text("Feedback")
+                                                .font(.headline)
+                                                .foregroundColor(.white)
+                                            
+                                            Text(analysis.feedback)
+                                                .font(.body)
+                                                .foregroundColor(.gray)
+                                                .lineSpacing(4)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(Color(red: 0.1, green: 0.1, blue: 0.15))
+                                    .cornerRadius(12)
+                                }
+                                
+                                // Delete Button
+                                Button(action: {
+                                    showingDeleteAlert = true
+                                }) {
+                                    HStack {
+                                        Image(systemName: "trash.circle.fill")
+                                            .font(.title2)
+                                        Text("Delete Analysis")
+                                            .font(.headline)
+                                    }
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.red)
+                                    .cornerRadius(12)
+                                }
                             }
+                            .padding()
                         }
-                        .padding()
                     }
                 }
             }
@@ -1228,39 +1148,6 @@ struct VideoAnalysisDetailView: View {
                 .foregroundColor(.white)
             }
         }
-        .sheet(isPresented: $showingVideoPlayer) {
-            if let videoURL = downloadedVideoURL {
-                VideoPlayerView(videoURL: videoURL)
-            }
-        }
-        .overlay(
-            // Download Progress Overlay
-            Group {
-                if isDownloadingVideo {
-                    ZStack {
-                        Color.black.opacity(0.7)
-                            .ignoresSafeArea()
-                        
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            
-                            Text("Downloading Video...")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                            
-                            ProgressView(value: downloadProgress)
-                                .progressViewStyle(LinearProgressViewStyle(tint: .blue))
-                                .frame(width: 200)
-                        }
-                        .padding()
-                        .background(Color(red: 0.1, green: 0.1, blue: 0.15))
-                        .cornerRadius(16)
-                    }
-                }
-            }
-        )
         .alert("Delete Analysis", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
@@ -1300,52 +1187,6 @@ struct VideoAnalysisDetailView: View {
                             print("Error response: \(String(data: data, encoding: .utf8) ?? "")")
                         }
                     }
-                }
-            }
-        }.resume()
-    }
-    
-    func downloadAndPlayVideo() {
-        guard let token = authManager.authToken else {
-            print("No authentication available")
-            return
-        }
-        
-        isDownloadingVideo = true
-        downloadProgress = 0.0
-        
-        let url = URL(string: "https://flash-list.com/videos/download/\(analysis.id)")!
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            DispatchQueue.main.async {
-                isDownloadingVideo = false
-                
-                if let error = error {
-                    print("Download error: \(error)")
-                    return
-                }
-                
-                if let httpResponse = response as? HTTPURLResponse,
-                   httpResponse.statusCode == 200,
-                   let data = data {
-                    
-                    // Save video to temporary file
-                    let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                    let videoName = "downloaded_video_\(analysis.id).mov"
-                    let videoURL = documentsPath.appendingPathComponent(videoName)
-                    
-                    do {
-                        try data.write(to: videoURL)
-                        self.downloadedVideoURL = videoURL
-                        self.showingVideoPlayer = true
-                        print("Video downloaded and saved to: \(videoURL)")
-                    } catch {
-                        print("Error saving video: \(error)")
-                    }
-                } else {
-                    print("Failed to download video")
                 }
             }
         }.resume()

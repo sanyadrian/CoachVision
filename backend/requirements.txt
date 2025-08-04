@@ -1,37 +1,29 @@
-# FastAPI and ASGI server
+# Core Framework
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
+python-multipart==0.0.6
 
-# Database and ORM
+# Database
 sqlmodel==0.0.8
-sqlalchemy==1.4.41
+sqlalchemy==2.0.23
 psycopg2-binary==2.9.9
 
-# File handling and multipart
-python-multipart==0.0.6
-aiofiles==23.2.1
-
-# Environment and configuration
-python-dotenv==1.0.0
+# Authentication & Security
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
 python-decouple==3.8
+PyJWT==2.8.0
 
-# Data validation
-pydantic==1.10.13
-
-# AI and ML
+# AI & Analysis
 openai==0.28.1
 opencv-python==4.8.1.78
 mediapipe==0.10.7
-numpy==1.24.3
-Pillow==10.1.0
 
-# Authentication and security
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-PyJWT==2.8.0
-
-# HTTP requests (for testing and external APIs)
+# Utilities
+python-dateutil==2.8.2
+aiofiles==23.2.1
 requests==2.31.0
 
-# Date and time handling
-python-dateutil==2.8.2 
+# Email
+smtplib (built-in)
+email (built-in) 
