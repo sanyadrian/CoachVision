@@ -5,7 +5,7 @@ python-multipart==0.0.6
 
 # Database
 sqlmodel==0.0.8
-sqlalchemy==2.0.23
+sqlalchemy==1.4.41
 psycopg2-binary==2.9.9
 
 # Authentication & Security
